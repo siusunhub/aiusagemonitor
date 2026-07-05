@@ -1,0 +1,35 @@
+## Ignore Visual Studio Temporary Files and Build Results
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.usermd
+*.sqlproj.user
+*.userprefs
+
+# Build results
+[Db]bin/
+[Db]obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bin/
+obj/
+
+# Visual Studio cache directory
+.vs/
+
+# Mono auto generated files
+mono_crash.*
+
+# Rider / JetBrains
+.idea/
+
+# Windows image cache
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini

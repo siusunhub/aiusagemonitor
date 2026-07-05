@@ -1,0 +1,22 @@
+<Window x:Class="AIUsageMonitor.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Claude login" Width="480" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" Topmost="True"
+        ResizeMode="NoResize" ShowInTaskbar="True">
+    <StackPanel Margin="16">
+        <TextBlock TextWrapping="Wrap" FontSize="13">
+            A browser window has opened at claude.ai.<LineBreak/>
+            1. Sign in and click Authorize.<LineBreak/>
+            2. Copy the code shown afterwards and paste it below.
+        </TextBlock>
+        <TextBox x:Name="CodeBox" Margin="0,12,0,4" Padding="6,4"
+                 FontFamily="Consolas" FontSize="12"/>
+        <TextBlock x:Name="ErrorText" Foreground="IndianRed" TextWrapping="Wrap" Margin="0,4"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Reopen browser" Click="OnReopen" Padding="10,4" Margin="0,0,8,0"/>
+            <Button x:Name="OkButton" Content="OK" Click="OnOk" IsDefault="True" Padding="20,4"/>
+            <Button Content="Cancel" IsCancel="True" Padding="10,4" Margin="8,0,0,0"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

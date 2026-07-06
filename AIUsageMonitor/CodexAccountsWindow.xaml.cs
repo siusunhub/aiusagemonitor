@@ -46,9 +46,16 @@ public partial class CodexAccountsWindow : Window
         var u = await CodexAccounts.FetchUsageAsync(account);
         if (generation != _generation || index >= AccountsList.Items.Count) return;
 
+        // Follow the bar's Used/Remaining display mode, and spell the meaning out.
+        string Pct(double? usedPct)
+        {
+            double p = usedPct ?? 0;
+            return ToolVm.ShowRemaining ? $"{100 - p:0}% free" : $"{p:0}% used";
+        }
+
         string suffix = u.Error != null
             ? $"    · {u.Error}"
-            : $"    · 5h {u.FiveHourPct ?? 0:0}%{Countdown(u.FiveHourReset)}  wk {u.WeeklyPct ?? 0:0}%{Countdown(u.WeeklyReset)}";
+            : $"    · 5hr: {Pct(u.FiveHourPct)}{Countdown(u.FiveHourReset)} / wk: {Pct(u.WeeklyPct)}{Countdown(u.WeeklyReset)}";
         AccountsList.Items[index] = _baseTexts[index] + suffix;
     }
 

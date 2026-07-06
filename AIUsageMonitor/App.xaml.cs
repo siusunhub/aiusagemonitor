@@ -6,7 +6,7 @@ namespace AIUsageMonitor;
 public partial class App : Application
 {
     /// <summary>Application version (record only).</summary>
-    public const string Version = "v0.1";
+    public const string Version = "v0.2";
 
     /// <summary>Write diagnostic entries to %APPDATA%\AIUsageMonitor\claude_api_debug.log.</summary>
     public static readonly bool EnableDebugLog = false;
@@ -37,12 +37,12 @@ public partial class App : Application
         };
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add("Refresh now", null, async (_, _) =>
+        menu.Items.Add("Refresh Now", null, async (_, _) =>
         {
             if (MainWindow is MainWindow w) await w.RefreshAsync();
         });
 
-        var codexMenu = new System.Windows.Forms.ToolStripMenuItem("Codex account");
+        var codexMenu = new System.Windows.Forms.ToolStripMenuItem("Codex Account...");
         codexMenu.DropDownItems.Add("…"); // placeholder so the submenu arrow shows
         codexMenu.DropDownOpening += (_, _) => RebuildTrayCodexMenu(codexMenu);
         menu.Items.Add(codexMenu);
@@ -56,7 +56,7 @@ public partial class App : Application
         };
         menu.Items.Add(showBar);
 
-        var monitorMenu = new System.Windows.Forms.ToolStripMenuItem("Show on monitor");
+        var monitorMenu = new System.Windows.Forms.ToolStripMenuItem("Show on Monitor");
         monitorMenu.DropDownItems.Add("…"); // placeholder so the submenu arrow shows
         monitorMenu.DropDownOpening += (_, _) => RebuildTrayMonitorMenu(monitorMenu);
         menu.Items.Add(monitorMenu);
@@ -135,7 +135,7 @@ public partial class App : Application
         }
 
         parent.DropDownItems.Add(new System.Windows.Forms.ToolStripSeparator());
-        parent.DropDownItems.Add("Configure accounts…", null, async (_, _) =>
+        parent.DropDownItems.Add("Accounts Setup", null, async (_, _) =>
         {
             new CodexAccountsWindow().ShowDialog();
             if (MainWindow is MainWindow w) await w.RefreshAsync();

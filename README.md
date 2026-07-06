@@ -20,10 +20,12 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
   - **Context Menu Options**: Toggle individual segments, manually refresh, trigger logins, switch accounts, select monitor, configure Windows autostart, or exit.
   - **System Tray Icon**: A persistent tray icon supporting refreshing, showing/hiding the bar, monitor selection, account selection, and application exit.
 - **Dual-Window Metrics**: Visualizes usage for two critical windows (e.g., short-term 5-hour and weekly) using TrafficMonitor-style dual-row mini bars.
+- **Remaining Quota Mode**: Toggles display between **% used** and **% remaining** (quota left) via the context menu or `ShowRemaining` config setting. Tooltips and detail views automatically adapt to display "left" or "free" values.
 - **Configurable Color Coding**: Automatically color-codes bars based on utilization limits (thresholds configurable in `config.json` via `YellowAtPercent` / `RedAtPercent`):
   - 🟢 **Green**: `< 70%` utilization (default)
   - 🟡 **Amber**: `70% – 90%` utilization (default)
   - 🔴 **Red**: `> 90%` utilization (default)
+
 
 ---
 
@@ -69,7 +71,7 @@ The published artifact will be located at:
 
 ### Configuration Files
 - **App Data**: `%APPDATA%\AIUsageMonitor\`
-- **Settings**: `config.json` (controls refresh interval, visual positioning offsets, monitor selection, bar visibility, color thresholds, and enabled segments).
+- **Settings**: `config.json` (controls refresh interval, visual positioning offsets, monitor selection, bar visibility, color thresholds, remaining quota toggle, and enabled segments).
 - **OAuth Session**: `claude_oauth.json` (stores access/refresh tokens securely).
 - **Codex Accounts Store**: `codex/` (contains credentials for all configured Codex accounts).
 - **Debug Logs**: `claude_api_debug.log` (tracks Claude API requests and token rotation states).

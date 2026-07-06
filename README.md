@@ -3,7 +3,8 @@
 A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing your real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity CLI (AG)**.
 
 <p align="center">
-  <img src="assets/aiusagemonitorsample.png" alt="AI Usage Monitor Screenshot">
+  <img src="assets/aiusagemonitorsample.png" alt="AI Usage Monitor Screenshot"><br>
+  <img src="assets/aiusagemonitorsample2.png" alt="AI Usage Monitor Screenshot 2">
 </p>
 
 

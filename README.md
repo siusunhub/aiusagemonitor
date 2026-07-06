@@ -42,6 +42,10 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
 
 ## Multi-Account Support (Codex)
 
+<p align="center">
+  <img src="assets/codexswitch.png" alt="Codex Account Switch UI">
+</p>
+
 You can manage and switch between multiple Codex accounts seamlessly via the widget:
 - Stores separate account sessions in `%APPDATA%\AIUsageMonitor\codex/` and swaps active tokens in `~/.codex/auth.json`.
 - Automatically backs up your initial base session as `auth_master.json`.

@@ -95,20 +95,56 @@ public static class ClaudeAuth
         if (DateTimeOffset.FromUnixTimeMilliseconds(t.ExpiresAtUnixMs) > DateTimeOffset.UtcNow.AddMinutes(2))
             return t.AccessToken;
 
-        if (string.IsNullOrEmpty(t.RefreshToken)) return null;
+        if (string.IsNullOrEmpty(t.RefreshToken)) return t.AccessToken;
 
-        var payload = JsonSerializer.Serialize(new
+        try
         {
-            grant_type = "refresh_token",
-            refresh_token = t.RefreshToken,
-            client_id = ClientId,
-        });
-        using var resp = await Http.PostAsync(TokenUrl,
-            new StringContent(payload, Encoding.UTF8, "application/json"));
-        if (!resp.IsSuccessStatusCode) return null;
+            var payload = JsonSerializer.Serialize(new
+            {
+                grant_type = "refresh_token",
+                refresh_token = t.RefreshToken,
+                client_id = ClientId,
+            });
+            using var resp = await Http.PostAsync(TokenUrl,
+                new StringContent(payload, Encoding.UTF8, "application/json"));
 
-        SaveTokenResponse(await resp.Content.ReadAsStringAsync(), previousRefreshToken: t.RefreshToken);
-        return LoadTokens()?.AccessToken;
+            if (resp.IsSuccessStatusCode)
+            {
+                SaveTokenResponse(await resp.Content.ReadAsStringAsync(), previousRefreshToken: t.RefreshToken);
+                Log("token refreshed");
+                return LoadTokens()?.AccessToken;
+            }
+
+            int status = (int)resp.StatusCode;
+            Log($"token refresh failed: HTTP {status}");
+
+            // 400/401 = the refresh token itself was rejected → session is truly
+            // dead, a new login is required. Anything else (429, 5xx) is
+            // transient: keep the session and try the old access token — the
+            // usage API will tell us if it has really expired.
+            return status is 400 or 401 ? null : t.AccessToken;
+        }
+        catch (Exception ex)
+        {
+            // Network hiccup — never drop the session for this.
+            Log("token refresh error: " + ex.Message);
+            return t.AccessToken;
+        }
+    }
+
+    private static string? _lastLog;
+
+    private static void Log(string msg)
+    {
+        if (msg == _lastLog) return;
+        _lastLog = msg;
+        try
+        {
+            var p = Path.Combine(Path.GetDirectoryName(TokenPath)!, "claude_api_debug.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(p)!);
+            File.AppendAllText(p, $"{DateTime.Now:HH:mm:ss} [auth] {msg}\n");
+        }
+        catch { }
     }
 
     private static StoredTokens? LoadTokens()

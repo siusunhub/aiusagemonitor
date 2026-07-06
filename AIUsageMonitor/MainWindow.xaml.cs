@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private double _dragStartX;
     private int _dragStartOffset;
     private bool _refreshing;
+    private bool _menuOpen;
 
     public MainWindow()
     {
@@ -94,6 +95,9 @@ public partial class MainWindow : Window
     private void Reposition()
     {
         if (_hwnd == IntPtr.Zero) return;
+        // Re-asserting topmost while the context menu is open would push the
+        // bar above its own menu — skip until the menu closes.
+        if (_menuOpen) return;
         var tb = TaskbarInterop.GetTaskbar(_config.MonitorIndex);
         if (tb == null) return;
 
@@ -227,6 +231,9 @@ public partial class MainWindow : Window
         var exit = new MenuItem { Header = "Exit" };
         exit.Click += (_, _) => Application.Current.Shutdown();
         menu.Items.Add(exit);
+
+        menu.Opened += (_, _) => _menuOpen = true;
+        menu.Closed += (_, _) => _menuOpen = false;
 
         ContextMenu = menu;
     }

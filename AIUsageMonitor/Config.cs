@@ -9,7 +9,7 @@ public sealed class Config
     /// <summary>Gap in device pixels between the bar's right edge and the tray-icon area.</summary>
     public int OffsetX { get; set; } = 8;
 
-    public int RefreshSeconds { get; set; } = 60;
+    public int RefreshSeconds { get; set; } = 120;
 
     public bool ShowClaude { get; set; } = true;
     public bool ShowCodex { get; set; } = true;

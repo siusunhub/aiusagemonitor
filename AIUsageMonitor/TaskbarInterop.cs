@@ -49,8 +49,9 @@ public static class TaskbarInterop
             if (index - 1 < secondaries.Count)
             {
                 var r = secondaries[index - 1];
-                // Secondary taskbars have no TrayNotifyWnd; keep clear of the clock area.
-                return new TaskbarInfo(r, r.Right - 170);
+                // Secondary taskbars have no TrayNotifyWnd — anchor at the right
+                // edge; the user can drag left if their setup shows a clock there.
+                return new TaskbarInfo(r, r.Right - 8);
             }
         }
         return GetTaskbar();

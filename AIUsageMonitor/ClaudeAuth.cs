@@ -136,6 +136,7 @@ public static class ClaudeAuth
 
     private static void Log(string msg)
     {
+        if (!App.EnableDebugLog) return;
         if (msg == _lastLog) return;
         _lastLog = msg;
         try

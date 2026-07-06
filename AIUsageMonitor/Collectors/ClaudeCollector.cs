@@ -64,6 +64,7 @@ public static class ClaudeCollector
 
     private static void Debug(string msg)
     {
+        if (!App.EnableDebugLog) return;
         if (msg == _lastDebugMsg) return; // don't grow the log on a repeating failure
         _lastDebugMsg = msg;
         try

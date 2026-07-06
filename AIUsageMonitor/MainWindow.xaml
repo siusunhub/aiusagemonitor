@@ -58,10 +58,39 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- 5h reset countdown, centered like the tool name -->
+                        <!-- compact circular gauges (5h + wk) -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                    Visibility="{Binding CircleVisibility}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
+                                <TextBlock Text="5h" Foreground="#808080" FontSize="9"
+                                           VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                <Grid Width="24" Height="24">
+                                    <Ellipse Width="20" Height="20" Stroke="#40FFFFFF" StrokeThickness="4"/>
+                                    <Path Data="{Binding Ring1Geometry}" Stroke="{Binding Ring1Brush}"
+                                          StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <TextBlock Text="{Binding Ring1CenterText}" Foreground="{Binding Ring1Brush}"
+                                               FontSize="8" FontWeight="Bold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="wk" Foreground="#808080" FontSize="9"
+                                           VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                <Grid Width="24" Height="24">
+                                    <Ellipse Width="20" Height="20" Stroke="#40FFFFFF" StrokeThickness="4"/>
+                                    <Path Data="{Binding Ring2Geometry}" Stroke="{Binding Ring2Brush}"
+                                          StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <TextBlock Text="{Binding Ring2CenterText}" Foreground="{Binding Ring2Brush}"
+                                               FontSize="8" FontWeight="Bold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 5h reset countdown, centered like the tool name (both modes) -->
                         <TextBlock Text="{Binding Row1ResetText}" Foreground="#909090"
                                    FontSize="11" FontWeight="SemiBold" Margin="4,0,0,0"
-                                   VerticalAlignment="Center" Visibility="{Binding RowsVisibility}"/>
+                                   VerticalAlignment="Center" Visibility="{Binding ResetVisibility}"/>
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

@@ -65,7 +65,7 @@ dotnet publish AIUsageMonitor\AIUsageMonitor.csproj -c Release
 ```
 
 The published artifact will be located at:
-`AIUsageMonitor\bin\Release\net10.0-windows\win-x64\publish\AIUsageMonitor.exe`
+`publish\AIUsageMonitor.exe`
 
 ### Configuration Files
 - **App Data**: `%APPDATA%\AIUsageMonitor\`

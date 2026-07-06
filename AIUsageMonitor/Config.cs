@@ -21,6 +21,9 @@ public sealed class Config
     /// <summary>Which taskbar to dock on: 0 = primary, 1+ = secondary taskbars left-to-right.</summary>
     public int MonitorIndex { get; set; } = 0;
 
+    /// <summary>Show remaining % (100 = fully free) instead of used % (0 = fully free).</summary>
+    public bool ShowRemaining { get; set; } = false;
+
     /// <summary>Bar turns amber at or above this % used (green below).</summary>
     public double YellowAtPercent { get; set; } = 70;
 

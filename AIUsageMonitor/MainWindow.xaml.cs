@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         ToolVm.YellowAt = _config.YellowAtPercent;
         ToolVm.RedAt = _config.RedAtPercent;
+        ToolVm.ShowRemaining = _config.ShowRemaining;
         ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity };
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
@@ -182,11 +183,11 @@ public partial class MainWindow : Window
     {
         var menu = new ContextMenu();
 
-        var refresh = new MenuItem { Header = "Refresh now" };
+        var refresh = new MenuItem { Header = "Refresh Now" };
         refresh.Click += async (_, _) => await RefreshAsync();
         menu.Items.Add(refresh);
 
-        var login = new MenuItem { Header = "Claude login…" };
+        var login = new MenuItem { Header = "Claude Login…" };
         login.Click += async (_, _) =>
         {
             var dlg = new LoginWindow();
@@ -194,7 +195,7 @@ public partial class MainWindow : Window
         };
         menu.Items.Add(login);
 
-        var codexMenu = new MenuItem { Header = "Codex account" };
+        var codexMenu = new MenuItem { Header = "Codex Account..." };
         codexMenu.Items.Add(new MenuItem { Header = "…" }); // placeholder so the submenu arrow shows
         codexMenu.SubmenuOpened += (_, _) => RebuildCodexMenu(codexMenu);
         menu.Items.Add(codexMenu);
@@ -208,14 +209,32 @@ public partial class MainWindow : Window
         AddShowToggle(menu, "Show Antigravity", _config.ShowAntigravity,
             v => { _config.ShowAntigravity = v; _antigravity.SetVisible(v); });
 
+        var showRemaining = new MenuItem
+        {
+            Header = "Show Remaining",
+            IsCheckable = true,
+            IsChecked = _config.ShowRemaining,
+        };
+        showRemaining.Click += (_, _) =>
+        {
+            _config.ShowRemaining = showRemaining.IsChecked;
+            _config.Save();
+            ToolVm.ShowRemaining = _config.ShowRemaining;
+            // re-render the current data in the new mode
+            _claude.Tick();
+            _codex.Tick();
+            _antigravity.Tick();
+        };
+        menu.Items.Add(showRemaining);
+
         menu.Items.Add(new Separator());
 
-        var monitorMenu = new MenuItem { Header = "Show on monitor" };
+        var monitorMenu = new MenuItem { Header = "Show on Monitor" };
         monitorMenu.Items.Add(new MenuItem { Header = "…" }); // placeholder so the submenu arrow shows
         monitorMenu.SubmenuOpened += (_, _) => RebuildMonitorMenu(monitorMenu);
         menu.Items.Add(monitorMenu);
 
-        var hideBar = new MenuItem { Header = "Hide bar" };
+        var hideBar = new MenuItem { Header = "Hide Bar" };
         hideBar.Click += (_, _) => SetBarVisible(false);
         menu.Items.Add(hideBar);
 
@@ -316,7 +335,7 @@ public partial class MainWindow : Window
         }
 
         parent.Items.Add(new Separator());
-        var configure = new MenuItem { Header = "Configure accounts…" };
+        var configure = new MenuItem { Header = "Accounts Setup" };
         configure.Click += async (_, _) =>
         {
             new CodexAccountsWindow().ShowDialog();

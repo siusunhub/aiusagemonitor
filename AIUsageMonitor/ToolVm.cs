@@ -14,6 +14,10 @@ public sealed class ToolVm : INotifyPropertyChanged
     public static double YellowAt { get; set; } = 70;
     public static double RedAt { get; set; } = 90;
 
+    /// <summary>Display % remaining (100 = free, full green bar) instead of % used.
+    /// Colors always follow the used %, so their meaning flips with the scale.</summary>
+    public static bool ShowRemaining { get; set; }
+
     private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4C, 0xC3, 0x8A));
     private static readonly Brush Yellow = new SolidColorBrush(Color.FromRgb(0xF5, 0xC8, 0x42));
     private static readonly Brush Red = new SolidColorBrush(Color.FromRgb(0xF2, 0x55, 0x5A));
@@ -90,10 +94,13 @@ public sealed class ToolVm : INotifyPropertyChanged
         }
 
         var lines = new List<string> { u.Detail };
+        string TipFor(LimitInfo l) => l.Percent is { } p
+            ? (ShowRemaining ? $"{100 - p:0.#}% left" : $"{p:0.#}% used")
+            : "?";
         if (u.Primary != null)
-            lines.Add($"5-hour: {(u.Primary.Percent is { } pp ? $"{pp:0.#}% used" : "?")}  {u.Primary.ResetText}");
+            lines.Add($"5-hour: {TipFor(u.Primary)}  {u.Primary.ResetText}");
         if (u.Weekly != null)
-            lines.Add($"weekly: {(u.Weekly.Percent is { } wp ? $"{wp:0.#}% used" : "?")}  {u.Weekly.ResetText}");
+            lines.Add($"weekly: {TipFor(u.Weekly)}  {u.Weekly.ResetText}");
         Tooltip = string.Join("\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
 
         Raise();
@@ -103,7 +110,8 @@ public sealed class ToolVm : INotifyPropertyChanged
     {
         if (limit?.Percent is not { } p)
             return ("–", 0, Brushes.DimGray);
-        return ($"{tilde}{p:0}%", Math.Clamp(p, 0, 100) / 100.0 * BarFullWidth, BrushFor(p));
+        double shown = ShowRemaining ? 100 - p : p;
+        return ($"{tilde}{shown:0}%", Math.Clamp(shown, 0, 100) / 100.0 * BarFullWidth, BrushFor(p));
     }
 
     /// <summary>Compact time-to-reset, e.g. "1h20m" / "45m" / "2d16h".</summary>

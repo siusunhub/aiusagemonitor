@@ -24,6 +24,12 @@ public sealed class Config
     /// <summary>Show remaining % (100 = fully free) instead of used % (0 = fully free).</summary>
     public bool ShowRemaining { get; set; } = false;
 
+    /// <summary>Compact mode: circular gauges instead of long bars (better on low-res screens).</summary>
+    public bool CompactCircles { get; set; } = false;
+
+    /// <summary>Show the 5-hour reset countdown next to the usage display.</summary>
+    public bool ShowResetTime { get; set; } = true;
+
     /// <summary>Bar turns amber at or above this % used (green below).</summary>
     public double YellowAtPercent { get; set; } = 70;
 

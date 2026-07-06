@@ -6,7 +6,7 @@ namespace AIUsageMonitor;
 public partial class App : Application
 {
     /// <summary>Application version (record only).</summary>
-    public const string Version = "v0.2";
+    public const string Version = "v0.3";
 
     /// <summary>Write diagnostic entries to %APPDATA%\AIUsageMonitor\claude_api_debug.log.</summary>
     public static readonly bool EnableDebugLog = false;
@@ -61,7 +61,18 @@ public partial class App : Application
         monitorMenu.DropDownOpening += (_, _) => RebuildTrayMonitorMenu(monitorMenu);
         menu.Items.Add(monitorMenu);
 
-        menu.Opening += (_, _) => showBar.Checked = MainWindow?.IsVisible == true;
+        var compact = new System.Windows.Forms.ToolStripMenuItem("Compact Circles");
+        compact.Click += (_, _) =>
+        {
+            if (MainWindow is MainWindow w) w.SetCompactCircles(!w.CompactCirclesEnabled);
+        };
+        menu.Items.Add(compact);
+
+        menu.Opening += (_, _) =>
+        {
+            showBar.Checked = MainWindow?.IsVisible == true;
+            compact.Checked = (MainWindow as MainWindow)?.CompactCirclesEnabled == true;
+        };
 
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Shutdown());

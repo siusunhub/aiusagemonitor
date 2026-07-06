@@ -75,4 +75,4 @@ The published artifact will be located at:
 - **Settings**: `config.json` (controls refresh interval, visual positioning offsets, monitor selection, bar visibility, color thresholds, remaining quota toggle, and enabled segments).
 - **OAuth Session**: `claude_oauth.json` (stores access/refresh tokens securely).
 - **Codex Accounts Store**: `codex/` (contains credentials for all configured Codex accounts).
-- **Debug Logs**: `claude_api_debug.log` (tracks Claude API requests and token rotation states).
+- **Debug Logs**: `claude_api_debug.log` (tracks Claude API requests and token rotation states; disabled by default. To enable, set `EnableDebugLog = true` in [App.xaml.cs](file:///C:/Users/Jacky/OneDrive/github-project/aiusagemonitor/AIUsageMonitor/App.xaml.cs) and rebuild the application).

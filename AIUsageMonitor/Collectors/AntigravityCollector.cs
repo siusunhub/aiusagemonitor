@@ -173,31 +173,31 @@ public static class AntigravityCollector
     {
         try
         {
+            // Quota is only available from the running language server. If it's
+            // not running, say so plainly rather than showing a confusing count.
+            bool running = FindLanguageServers().Count > 0;
+
+            var detail = "Antigravity is not running — start it to see 5h/weekly quota";
             var convDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".gemini", "antigravity-cli", "conversations");
-
-            if (!Directory.Exists(convDir))
-                return new ToolUsage { Name = "AG", StatusText = "n/a", Detail = "Antigravity: no data folder" };
-
-            var today = DateTime.Now.Date;
-            var dbs = Directory.EnumerateFiles(convDir, "*.db")
-                .Select(f => new FileInfo(f))
-                .ToList();
-
-            int todayCount = dbs.Count(f => f.LastWriteTime >= today);
-            var last = dbs.Count > 0 ? dbs.Max(f => f.LastWriteTime) : (DateTime?)null;
-
-            var detail = "Antigravity (activity only)\nstart Antigravity to see 5h/weekly quota bars";
-            if (last is { } l)
-                detail += $"\nlast activity: {l:ddd HH:mm}";
+            if (Directory.Exists(convDir))
+            {
+                var last = Directory.EnumerateFiles(convDir, "*.db")
+                    .Select(f => new FileInfo(f).LastWriteTime)
+                    .DefaultIfEmpty()
+                    .Max();
+                if (last != default)
+                    detail += $"\nlast activity: {last:ddd HH:mm}";
+            }
 
             return new ToolUsage
             {
                 Name = "AG",
-                StatusText = todayCount > 0 ? $"{todayCount} today" : "idle",
-                Detail = detail,
-                IsEstimate = true,
+                // "running but query failed" is rare; either way there's no live quota.
+                StatusText = running ? "n/a" : "off",
+                Detail = running ? "Antigravity quota query failed — will retry" : detail,
+                IsEstimate = false,
             };
         }
         catch (Exception ex)

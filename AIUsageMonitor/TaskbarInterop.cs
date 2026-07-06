@@ -91,4 +91,11 @@ public static class TaskbarInterop
 
     public static void MoveTopMost(IntPtr hwnd, int x, int y)
         => SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+
+    private const uint SWP_NOMOVE = 0x0002;
+
+    /// <summary>Re-assert topmost without moving/resizing — restores the bar if the
+    /// taskbar rose above it, with no repaint flash since the position is unchanged.</summary>
+    public static void AssertTopMost(IntPtr hwnd)
+        => SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }

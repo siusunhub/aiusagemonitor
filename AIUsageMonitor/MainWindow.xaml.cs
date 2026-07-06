@@ -27,6 +27,8 @@ public partial class MainWindow : Window
         ToolVm.YellowAt = _config.YellowAtPercent;
         ToolVm.RedAt = _config.RedAtPercent;
         ToolVm.ShowRemaining = _config.ShowRemaining;
+        ToolVm.CompactCircles = _config.CompactCircles;
+        ToolVm.ShowResetTime = _config.ShowResetTime;
         ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity };
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
@@ -44,6 +46,11 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         _hwnd = new WindowInteropHelper(this).Handle;
         TaskbarInterop.MakeUnfocusableToolWindow(_hwnd);
+
+        // Pin the window above the taskbar at the OS level so clicking the
+        // taskbar can't push it below us — this removes the 2-second flicker
+        // where the timer had to keep re-lifting the bar back on top.
+        HwndSource.FromHwnd(_hwnd)?.AddHook(KeepTopMostHook);
 
         var positionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         positionTimer.Tick += (_, _) => Reposition();
@@ -93,6 +100,38 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---- keep-topmost message hook ---------------------------------------
+
+    private const int WM_WINDOWPOSCHANGING = 0x0046;
+    private const uint SWP_NOZORDER = 0x0004;
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WINDOWPOS
+    {
+        public IntPtr hwnd, hwndInsertAfter;
+        public int x, y, cx, cy;
+        public uint flags;
+    }
+
+    private IntPtr KeepTopMostHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        // Force ourselves back to the top of the topmost band whenever Windows
+        // tries to reorder us — except while our own context menu is open
+        // (then the menu popup must stay above the bar).
+        if (msg == WM_WINDOWPOSCHANGING && !_menuOpen)
+        {
+            var wp = System.Runtime.InteropServices.Marshal.PtrToStructure<WINDOWPOS>(lParam);
+            if (wp.hwndInsertAfter != HWND_TOPMOST)
+            {
+                wp.hwndInsertAfter = HWND_TOPMOST;
+                wp.flags &= ~SWP_NOZORDER;
+                System.Runtime.InteropServices.Marshal.StructureToPtr(wp, lParam, false);
+            }
+        }
+        return IntPtr.Zero;
+    }
+
     private void Reposition()
     {
         if (_hwnd == IntPtr.Zero) return;
@@ -114,8 +153,21 @@ public partial class MainWindow : Window
         int x = tb.TrayLeft - widthPx - _config.OffsetX;
         int y = tb.Bar.Top + (barHeight - heightPx) / 2;
 
+        // When the position is unchanged, still re-assert topmost (without
+        // moving, so no repaint flash) — this brings the bar back if the
+        // taskbar rose above it. Only do a real move when the position changes.
+        if (x == _lastX && y == _lastY)
+        {
+            TaskbarInterop.AssertTopMost(_hwnd);
+            return;
+        }
+        _lastX = x;
+        _lastY = y;
         TaskbarInterop.MoveTopMost(_hwnd, x, y);
     }
+
+    private int _lastX = int.MinValue;
+    private int _lastY = int.MinValue;
 
     // ---- visibility & monitor selection (also used by the tray menu) --------
 
@@ -141,6 +193,17 @@ public partial class MainWindow : Window
         _config.MonitorIndex = index;
         _config.Save();
         Reposition();
+    }
+
+    public bool CompactCirclesEnabled => _config.CompactCircles;
+
+    public void SetCompactCircles(bool enabled)
+    {
+        _config.CompactCircles = enabled;
+        _config.Save();
+        ToolVm.CompactCircles = enabled;
+        RerenderAll();
+        Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
     }
 
     // ---- horizontal drag to adjust position ------------------------------
@@ -220,12 +283,42 @@ public partial class MainWindow : Window
             _config.ShowRemaining = showRemaining.IsChecked;
             _config.Save();
             ToolVm.ShowRemaining = _config.ShowRemaining;
-            // re-render the current data in the new mode
-            _claude.Tick();
-            _codex.Tick();
-            _antigravity.Tick();
+            RerenderAll();
         };
         menu.Items.Add(showRemaining);
+
+        var compact = new MenuItem
+        {
+            Header = "Compact Circles",
+            IsCheckable = true,
+            IsChecked = _config.CompactCircles,
+        };
+        compact.Click += (_, _) =>
+        {
+            _config.CompactCircles = compact.IsChecked;
+            _config.Save();
+            ToolVm.CompactCircles = _config.CompactCircles;
+            RerenderAll();
+            // layout size changes between modes — re-anchor to the tray
+            Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
+        };
+        menu.Items.Add(compact);
+
+        var showReset = new MenuItem
+        {
+            Header = "Show Reset Time",
+            IsCheckable = true,
+            IsChecked = _config.ShowResetTime,
+        };
+        showReset.Click += (_, _) =>
+        {
+            _config.ShowResetTime = showReset.IsChecked;
+            _config.Save();
+            ToolVm.ShowResetTime = _config.ShowResetTime;
+            RerenderAll();
+            Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
+        };
+        menu.Items.Add(showReset);
 
         menu.Items.Add(new Separator());
 
@@ -269,6 +362,14 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
         };
         menu.Items.Add(item);
+    }
+
+    /// <summary>Re-render all tools from their last data (e.g. after a display-mode toggle).</summary>
+    private void RerenderAll()
+    {
+        _claude.Tick();
+        _codex.Tick();
+        _antigravity.Tick();
     }
 
     /// <summary>Rebuild the "Show on monitor" submenu with the current taskbar list.</summary>

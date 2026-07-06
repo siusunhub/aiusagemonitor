@@ -29,6 +29,7 @@ public partial class MainWindow : Window
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
         _antigravity.SetVisible(_config.ShowAntigravity);
+        UpdateSeparators();
         BuildContextMenu();
 
         MouseLeftButtonDown += OnDragStart;
@@ -191,10 +192,22 @@ public partial class MainWindow : Window
         item.Click += (_, _) =>
         {
             apply(item.IsChecked);
+            UpdateSeparators();
             _config.Save();
             // let layout settle before re-anchoring to the tray
             Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
         };
         menu.Items.Add(item);
+    }
+
+    /// <summary>Show a "|" before every visible segment except the first.</summary>
+    private void UpdateSeparators()
+    {
+        bool anyBefore = false;
+        foreach (var vm in new[] { _claude, _codex, _antigravity })
+        {
+            vm.SetSeparator(anyBefore && vm.IsShown);
+            if (vm.IsShown) anyBefore = true;
+        }
     }
 }

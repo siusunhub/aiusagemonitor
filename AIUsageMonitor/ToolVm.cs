@@ -19,6 +19,7 @@ public sealed class ToolVm : INotifyPropertyChanged
 
     private bool _show = true;
     private bool _hasRows;
+    private bool _showSeparator;
     private ToolUsage? _last;
 
     public string Name { get; }
@@ -42,6 +43,9 @@ public sealed class ToolVm : INotifyPropertyChanged
     public Visibility Visibility => _show ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RowsVisibility => _hasRows ? Visibility.Visible : Visibility.Collapsed;
     public Visibility FallbackVisibility => _hasRows ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility SeparatorVisibility => _showSeparator ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool IsShown => _show;
 
     public ToolVm(string name) => Name = name;
 
@@ -50,6 +54,13 @@ public sealed class ToolVm : INotifyPropertyChanged
     public void SetVisible(bool show)
     {
         _show = show;
+        Raise();
+    }
+
+    /// <summary>Leading "|" divider — hidden on the first visible segment.</summary>
+    public void SetSeparator(bool show)
+    {
+        _showSeparator = show;
         Raise();
     }
 

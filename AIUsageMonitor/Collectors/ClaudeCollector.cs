@@ -21,16 +21,40 @@ public static class ClaudeCollector
     /// <summary>Back-off: don't hit the usage API again before this time (set on 429).</summary>
     private static DateTimeOffset _skipApiUntil = DateTimeOffset.MinValue;
 
+    /// <summary>Last successful API reading — shown during transient failures.</summary>
+    private static ToolUsage? _lastGood;
+    private static DateTimeOffset _lastGoodAt;
+
     public static async Task<ToolUsage> CollectAsync()
     {
         try
         {
             var fromApi = await TryApiAsync();
-            if (fromApi != null) return fromApi;
+            if (fromApi != null)
+            {
+                _lastGood = fromApi;
+                _lastGoodAt = DateTimeOffset.Now;
+                return fromApi;
+            }
         }
         catch (Exception ex)
         {
             Debug("exception: " + ex.Message);
+        }
+
+        // Transient failure (timeout, 429 back-off, …) with a valid session:
+        // keep showing the last known percentages instead of dropping to the
+        // token estimate. Only a real sign-in problem clears them.
+        if (!NeedsLogin && _lastGood != null && DateTimeOffset.Now - _lastGoodAt < TimeSpan.FromHours(6))
+        {
+            return new ToolUsage
+            {
+                Name = _lastGood.Name,
+                Primary = _lastGood.Primary,
+                Weekly = _lastGood.Weekly,
+                Detail = _lastGood.Detail + $"\nlast update {_lastGoodAt:HH:mm} — retrying…",
+                IsEstimate = true,
+            };
         }
 
         return CollectFromTranscripts();

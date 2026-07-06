@@ -9,9 +9,10 @@ public sealed class ToolVm : INotifyPropertyChanged
 {
     private const double BarFullWidth = 52;
 
-    /// <summary>Color thresholds (% used), set from Config at startup.</summary>
-    public static double YellowAt { get; set; } = 75;
-    public static double RedAt { get; set; } = 95;
+    /// <summary>Color thresholds (% used), set from Config at startup.
+    /// Green below YellowAt, amber from YellowAt to RedAt, red above RedAt.</summary>
+    public static double YellowAt { get; set; } = 70;
+    public static double RedAt { get; set; } = 90;
 
     private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4C, 0xC3, 0x8A));
     private static readonly Brush Yellow = new SolidColorBrush(Color.FromRgb(0xF5, 0xC8, 0x42));
@@ -123,7 +124,7 @@ public sealed class ToolVm : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
 
     private static Brush BrushFor(double percentUsed) =>
-        percentUsed >= RedAt ? Red
-        : percentUsed > YellowAt ? Yellow
+        percentUsed > RedAt ? Red
+        : percentUsed >= YellowAt ? Yellow
         : Green;
 }

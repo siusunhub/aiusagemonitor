@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         countdownTimer.Start();
 
         Reposition();
+        if (!_config.BarVisible) Hide();
         _ = RefreshAsync();
     }
 
@@ -93,18 +94,48 @@ public partial class MainWindow : Window
     private void Reposition()
     {
         if (_hwnd == IntPtr.Zero) return;
-        var tb = TaskbarInterop.GetTaskbar();
+        var tb = TaskbarInterop.GetTaskbar(_config.MonitorIndex);
         if (tb == null) return;
 
         double scale = TaskbarInterop.GetDpiForWindow(_hwnd) / 96.0;
         int widthPx = (int)Math.Round(ActualWidth * scale);
         int heightPx = (int)Math.Round(ActualHeight * scale);
 
+        // Never let the bar leave the monitor on the left.
+        int maxOffset = Math.Max(0, tb.TrayLeft - widthPx - (tb.Bar.Left + 4));
+        if (_config.OffsetX > maxOffset) _config.OffsetX = maxOffset;
+
         int barHeight = tb.Bar.Bottom - tb.Bar.Top;
         int x = tb.TrayLeft - widthPx - _config.OffsetX;
         int y = tb.Bar.Top + (barHeight - heightPx) / 2;
 
         TaskbarInterop.MoveTopMost(_hwnd, x, y);
+    }
+
+    // ---- visibility & monitor selection (also used by the tray menu) --------
+
+    public void SetBarVisible(bool visible)
+    {
+        _config.BarVisible = visible;
+        _config.Save();
+        if (visible)
+        {
+            Show();
+            Reposition();
+        }
+        else
+        {
+            Hide();
+        }
+    }
+
+    public int CurrentMonitorIndex => _config.MonitorIndex;
+
+    public void SetMonitorIndex(int index)
+    {
+        _config.MonitorIndex = index;
+        _config.Save();
+        Reposition();
     }
 
     // ---- horizontal drag to adjust position ------------------------------
@@ -159,6 +190,11 @@ public partial class MainWindow : Window
         };
         menu.Items.Add(login);
 
+        var codexMenu = new MenuItem { Header = "Codex account" };
+        codexMenu.Items.Add(new MenuItem { Header = "…" }); // placeholder so the submenu arrow shows
+        codexMenu.SubmenuOpened += (_, _) => RebuildCodexMenu(codexMenu);
+        menu.Items.Add(codexMenu);
+
         menu.Items.Add(new Separator());
 
         AddShowToggle(menu, "Show Claude Code", _config.ShowClaude,
@@ -169,6 +205,15 @@ public partial class MainWindow : Window
             v => { _config.ShowAntigravity = v; _antigravity.SetVisible(v); });
 
         menu.Items.Add(new Separator());
+
+        var monitorMenu = new MenuItem { Header = "Show on monitor" };
+        monitorMenu.Items.Add(new MenuItem { Header = "…" }); // placeholder so the submenu arrow shows
+        monitorMenu.SubmenuOpened += (_, _) => RebuildMonitorMenu(monitorMenu);
+        menu.Items.Add(monitorMenu);
+
+        var hideBar = new MenuItem { Header = "Hide bar" };
+        hideBar.Click += (_, _) => SetBarVisible(false);
+        menu.Items.Add(hideBar);
 
         var autostart = new MenuItem
         {
@@ -198,6 +243,79 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
         };
         menu.Items.Add(item);
+    }
+
+    /// <summary>Rebuild the "Show on monitor" submenu with the current taskbar list.</summary>
+    private void RebuildMonitorMenu(MenuItem parent)
+    {
+        parent.Items.Clear();
+
+        void AddItem(int index, string label)
+        {
+            var item = new MenuItem
+            {
+                Header = label,
+                IsCheckable = true,
+                IsChecked = _config.MonitorIndex == index,
+            };
+            item.Click += (_, _) => SetMonitorIndex(index);
+            parent.Items.Add(item);
+        }
+
+        var primary = TaskbarInterop.GetTaskbar();
+        AddItem(0, primary != null ? TaskbarInterop.ScreenLabelFor(primary.Bar) : "Primary taskbar");
+
+        var secondaries = TaskbarInterop.GetSecondaryTaskbars();
+        for (int i = 0; i < secondaries.Count; i++)
+            AddItem(i + 1, TaskbarInterop.ScreenLabelFor(secondaries[i]));
+
+        if (secondaries.Count == 0)
+            parent.Items.Add(new MenuItem { Header = "(no other taskbar found)", IsEnabled = false });
+    }
+
+    /// <summary>Rebuild the "Codex account" submenu with the current account list.</summary>
+    private void RebuildCodexMenu(MenuItem parent)
+    {
+        parent.Items.Clear();
+        try
+        {
+            foreach (var acc in CodexAccounts.List())
+            {
+                var item = new MenuItem
+                {
+                    Header = CodexAccounts.DisplayName(acc),
+                    IsCheckable = true,
+                    IsChecked = acc.IsActive,
+                };
+                var captured = acc;
+                item.Click += async (_, _) =>
+                {
+                    try
+                    {
+                        CodexAccounts.Switch(captured);
+                        await RefreshAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Codex account switch");
+                    }
+                };
+                parent.Items.Add(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            parent.Items.Add(new MenuItem { Header = "error: " + ex.Message, IsEnabled = false });
+        }
+
+        parent.Items.Add(new Separator());
+        var configure = new MenuItem { Header = "Configure accounts…" };
+        configure.Click += async (_, _) =>
+        {
+            new CodexAccountsWindow().ShowDialog();
+            await RefreshAsync();
+        };
+        parent.Items.Add(configure);
     }
 
     /// <summary>Show a "|" before every visible segment except the first.</summary>

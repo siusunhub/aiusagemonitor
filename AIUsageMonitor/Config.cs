@@ -15,11 +15,17 @@ public sealed class Config
     public bool ShowCodex { get; set; } = true;
     public bool ShowAntigravity { get; set; } = true;
 
-    /// <summary>Bar turns yellow above this % used (green at or below).</summary>
-    public double YellowAtPercent { get; set; } = 75;
+    /// <summary>Whether the taskbar bar is visible (tray icon can always bring it back).</summary>
+    public bool BarVisible { get; set; } = true;
 
-    /// <summary>Bar turns red at or above this % used. Set above 100 to disable red.</summary>
-    public double RedAtPercent { get; set; } = 95;
+    /// <summary>Which taskbar to dock on: 0 = primary, 1+ = secondary taskbars left-to-right.</summary>
+    public int MonitorIndex { get; set; } = 0;
+
+    /// <summary>Bar turns amber at or above this % used (green below).</summary>
+    public double YellowAtPercent { get; set; } = 70;
+
+    /// <summary>Bar turns red above this % used. Set above 100 to disable red.</summary>
+    public double RedAtPercent { get; set; } = 90;
 
     private static string PathFor() => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

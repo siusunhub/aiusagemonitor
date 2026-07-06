@@ -1,78 +1,74 @@
 # AI Usage Monitor
 
-A slim Windows 11 taskbar widget showing current usage of **Claude Code (CC)**,
-**Codex (CX)** and **Antigravity CLI (AG)** — TrafficMonitor-style, docked just
-left of the tray icons.
+A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing your real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity CLI (AG)**.
 
-```
+```text
 CC 42%   CX 15% wk 21%   AG 3 today
 ▂▂▂▂     ▂▂▂             ▂
 ```
 
-## What each segment shows
+## Features
 
-| Tool | Source | Display |
-|------|--------|---------|
-| CC — Claude Code | OAuth usage API (own login via the widget, or the token in `~/.claude/.credentials.json`); falls back to transcript token counts | Exact 5-hour % + weekly % used; extra model-specific windows in the tooltip |
-| CX — Codex | Live `https://chatgpt.com/backend-api/wham/usage` (token from `~/.codex/auth.json`, includes usage from all devices); falls back to the newest local session file | Exact 5-hour % + weekly % used |
-| AG — Antigravity | `RetrieveUserQuotaSummary` RPC on the local Antigravity language server (CSRF token + port discovered from the running process) | Gemini group 5-hour % + weekly % used; Claude/GPT group in the tooltip. Falls back to activity when Antigravity isn't running |
+- **Seamless Multi-Monitor Taskbar Integration**:
+  - Docks over the Windows taskbar next to the tray icons (`TrayNotifyWnd`).
+  - Automatically adjusts position, scale, and layout every 2 seconds to adapt to taskbar size, resolution, and DPI changes.
+  - **Multi-Monitor Support**: Select which monitor/taskbar to dock on (Primary or any Secondary taskbar) via the context menu.
+  - **Visibility Toggling**: Hide the main bar from the desktop using "Hide bar" and show it again via the system tray context menu.
+- **Interactive Controls**:
+  - **Drag Repositioning**: Click and drag horizontally to place the widget exactly where you want it (position is saved to config).
+  - **Context Menu Options**: Toggle individual segments, manually refresh, trigger logins, switch accounts, select monitor, configure Windows autostart, or exit.
+  - **System Tray Icon**: A persistent tray icon supporting refreshing, showing/hiding the bar, monitor selection, account selection, and application exit.
+- **Dual-Window Metrics**: Visualizes usage for two critical windows (e.g., short-term 5-hour and weekly) using TrafficMonitor-style dual-row mini bars.
+- **Configurable Color Coding**: Automatically color-codes bars based on utilization limits (thresholds configurable in `config.json` via `YellowAtPercent` / `RedAtPercent`):
+  - 🟢 **Green**: `< 70%` utilization (default)
+  - 🟡 **Amber**: `70% – 90%` utilization (default)
+  - 🔴 **Red**: `> 90%` utilization (default)
 
-Each tool shows two mini bars — **5h** (short window) and **wk** (weekly) — with
-percentages. Colors: green &lt; 50%, amber &lt; 80%, red ≥ 80%. A `~` prefix means
-estimated data. When no percentage data exists, a status text is shown instead
-(e.g. CC token estimate, AG session activity). Hover a segment for details
-(reset times, plan, hints).
+---
 
-## Claude login
+## Supported Tools & Data Sources
 
-If CC shows a token estimate instead of percentages, the widget can't read a
-valid token from `~/.claude/.credentials.json`. Right-click the bar →
-**Claude login…** — a browser opens at claude.ai; sign in, click Authorize,
-and paste the code back into the dialog. Tokens are stored in the widget's own
-file (`%APPDATA%\AIUsageMonitor\claude_oauth.json`) and auto-refresh; Claude
-Code's own credentials are never modified.
+| Tool | Primary Source | Fallback / Offline Source |
+| :--- | :--- | :--- |
+| **Claude Code (CC)** | Live OAuth utilization endpoint (`/api/oauth/usage`). Fully supports widget-based OAuth sign-in and token auto-refresh. | Scans local transcript JSONL files in `~/.claude/projects/` to calculate input/output token usage over the last 5 hours. |
+| **Codex (CX)** | Live backend API (`/backend-api/wham/usage`) using the OAuth token stored by Codex in `~/.codex/auth.json`. | Parses rate limit payloads from the tail of the newest local rollout session files in `~/.codex/sessions/`. |
+| **Antigravity (AG)** | Querying the local `language_server_windows_x64.exe` instance. CSRF token and port are automatically discovered via WMI and TCP state. | Counts the number of active conversation database files (`*.db`) modified today in `~/.gemini/antigravity-cli/conversations/`. |
 
-## Controls
+---
 
-- **Drag** the bar horizontally to reposition it (saved to config).
-- **Right-click** → Refresh now / Claude login… / Show Claude Code / Show Codex /
-  Show Antigravity (toggle each segment) / Start with Windows / Exit.
-- A tray icon ("AI") is also available with refresh/exit.
+## Multi-Account Support (Codex)
 
-## Build & run
+You can manage and switch between multiple Codex accounts seamlessly via the widget:
+- Stores separate account sessions in `%APPDATA%\AIUsageMonitor\codex/` and swaps active tokens in `~/.codex/auth.json`.
+- Automatically backs up your initial base session as `auth_master.json`.
+- Syncs token refreshes back to store files before switching, preventing token expiration or session loss.
+- **Account Management UI**: Right-click → **Codex account** → **Configure accounts...** opens a dedicated window where you can list all profiles, asynchronously fetch their real-time usage (primary & weekly) with countdown timers, rename aliases, add new accounts (triggers `codex login` flow), or remove them.
 
-Open `AIUsageMonitor.sln` in Visual Studio, or from the repo root:
+---
+
+## Build and Run
+
+### Prerequisites
+- **.NET 10 SDK** (to build)
+- **.NET 10 Desktop Runtime** (to run the executable)
+
+### Building
+Open the solution `AIUsageMonitor.sln` in Visual Studio 2022, or build via the command line:
 
 ```powershell
-dotnet build -c Debug          # dev build
-dotnet publish AIUsageMonitor\AIUsageMonitor.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
-# → AIUsageMonitor\bin\Release\net8.0-windows\win-x64\publish\AIUsageMonitor.exe
+# Build in Debug mode
+dotnet build -c Debug
+
+# Publish a single-file Release executable
+dotnet publish AIUsageMonitor\AIUsageMonitor.csproj -c Release
 ```
 
-Requires .NET 8 runtime (already present with the SDK).
+The published artifact will be located at:
+`AIUsageMonitor\bin\Release\net10.0-windows\win-x64\publish\AIUsageMonitor.exe`
 
-## How the taskbar placement works
-
-Windows 11 removed the DeskBand API, so the widget is a borderless, topmost,
-non-activating tool window positioned over the taskbar's empty area, anchored
-to the left edge of the tray area (`TrayNotifyWnd`). It re-checks the taskbar
-position every 2 seconds, so it follows taskbar/DPI changes. Data refreshes
-every 60 seconds (configurable in `%APPDATA%\AIUsageMonitor\config.json`).
-
-Known limitations:
-- The bar floats *over* the taskbar; a fullscreen app will cover it (and the
-  taskbar) as normal.
-- Auto-hide taskbar isn't followed yet.
-- Antigravity quota percentages aren't available locally; only activity is shown.
-
-## Files
-
-Standard VS layout: `AIUsageMonitor.sln` at the root, sources in `AIUsageMonitor\`.
-
-- `MainWindow.xaml(.cs)` — the bar UI, positioning, drag, context menu
-- `TaskbarInterop.cs` — Win32 taskbar lookup + topmost placement
-- `Collectors/` — one collector per tool (`ClaudeCollector`, `CodexCollector`, `AntigravityCollector`)
-- `Config.cs` — `%APPDATA%\AIUsageMonitor\config.json` + autostart registry value
-- `App.xaml.cs` — single-instance guard + tray icon
-
-Debug log for the Claude API path: `%APPDATA%\AIUsageMonitor\claude_api_debug.log`.
+### Configuration Files
+- **App Data**: `%APPDATA%\AIUsageMonitor\`
+- **Settings**: `config.json` (controls refresh interval, visual positioning offsets, monitor selection, bar visibility, color thresholds, and enabled segments).
+- **OAuth Session**: `claude_oauth.json` (stores access/refresh tokens securely).
+- **Codex Accounts Store**: `codex/` (contains credentials for all configured Codex accounts).
+- **Debug Logs**: `claude_api_debug.log` (tracks Claude API requests and token rotation states).

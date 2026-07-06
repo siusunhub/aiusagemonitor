@@ -33,3 +33,19 @@ ehthumbs.db
 
 # Folder config file
 Desktop.ini
+
+_*.md
+
+# Credentials, tokens, local configurations, and environment files
+config.json
+*oauth.json
+auth*.json
+credentials.json
+.env
+.env.*
+*.env
+
+# Local logs and temp files
+*.log
+*.tmp
+*.temp

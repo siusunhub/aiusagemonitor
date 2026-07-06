@@ -40,6 +40,47 @@ public static class TaskbarInterop
         return new TaskbarInfo(barRect, trayLeft);
     }
 
+    /// <summary>Taskbar by index: 0 = primary, 1+ = secondary taskbars (left-to-right). Falls back to primary.</summary>
+    public static TaskbarInfo? GetTaskbar(int index)
+    {
+        if (index > 0)
+        {
+            var secondaries = GetSecondaryTaskbars();
+            if (index - 1 < secondaries.Count)
+            {
+                var r = secondaries[index - 1];
+                // Secondary taskbars have no TrayNotifyWnd; keep clear of the clock area.
+                return new TaskbarInfo(r, r.Right - 170);
+            }
+        }
+        return GetTaskbar();
+    }
+
+    /// <summary>Rects of all secondary-monitor taskbars, ordered left-to-right.</summary>
+    public static List<RECT> GetSecondaryTaskbars()
+    {
+        var list = new List<RECT>();
+        IntPtr h = IntPtr.Zero;
+        while ((h = FindWindowEx(IntPtr.Zero, h, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
+        {
+            if (GetWindowRect(h, out var r)) list.Add(r);
+        }
+        return list.OrderBy(r => r.Left).ToList();
+    }
+
+    /// <summary>Human label ("Monitor 2") for the screen a taskbar rect sits on.</summary>
+    public static string ScreenLabelFor(RECT r)
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        int cx = (r.Left + r.Right) / 2, cy = (r.Top + r.Bottom) / 2;
+        for (int i = 0; i < screens.Length; i++)
+        {
+            if (screens[i].Bounds.Contains(cx, cy))
+                return $"Monitor {i + 1}" + (screens[i].Primary ? " (primary)" : "");
+        }
+        return "Monitor ?";
+    }
+
     /// <summary>Keep the window out of Alt-Tab and stop it stealing focus when clicked.</summary>
     public static void MakeUnfocusableToolWindow(IntPtr hwnd)
     {

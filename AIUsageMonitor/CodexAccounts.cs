@@ -274,19 +274,24 @@ public static class CodexAccounts
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
         if (!doc.RootElement.TryGetProperty("rate_limit", out var rl)) return null;
 
-        (double? Pct, DateTimeOffset? Reset) Window(string key)
+        (Collectors.LimitInfo? Info, double? Seconds) Window(string key)
         {
             if (!rl.TryGetProperty(key, out var w) || w.ValueKind != JsonValueKind.Object) return (null, null);
             double? pct = w.TryGetProperty("used_percent", out var up) && up.ValueKind == JsonValueKind.Number
                 ? up.GetDouble() : null;
             DateTimeOffset? reset = w.TryGetProperty("reset_at", out var ra) && ra.ValueKind == JsonValueKind.Number
                 ? DateTimeOffset.FromUnixTimeSeconds(ra.GetInt64()) : null;
-            return (pct, reset);
+            double? seconds = w.TryGetProperty("limit_window_seconds", out var lw) && lw.ValueKind == JsonValueKind.Number
+                ? lw.GetDouble() : null;
+            return pct == null && reset == null ? (null, null)
+                : (new Collectors.LimitInfo { Percent = pct, ResetsAt = reset }, seconds);
         }
 
-        var p = Window("primary_window");
-        var s = Window("secondary_window");
-        return new CodexUsage(p.Pct, p.Reset, s.Pct, s.Reset, null);
+        // Same duration-based slotting as the taskbar collector: a week-long
+        // window in primary lands in the weekly column, not the 5h one.
+        var (shortW, longW) = Collectors.CodexCollector.AssignWindows(
+            Window("primary_window"), Window("secondary_window"));
+        return new CodexUsage(shortW?.Percent, shortW?.ResetsAt, longW?.Percent, longW?.ResetsAt, null);
     }
 
     /// <summary>Refresh an account's tokens and persist them back into its file. Returns the new access token.</summary>

@@ -59,33 +59,75 @@ public static class CodexCollector
         var root = body.RootElement;
         if (!root.TryGetProperty("rate_limit", out var rl)) return null;
 
-        var primary = ParseApiWindow(rl, "primary_window");
-        var weekly = ParseApiWindow(rl, "secondary_window");
+        var (primary, weekly) = AssignWindows(
+            ParseApiWindow(rl, "primary_window"),
+            ParseApiWindow(rl, "secondary_window"));
         if (primary == null && weekly == null) return null;
 
         string plan = root.TryGetProperty("plan_type", out var p) && p.ValueKind == JsonValueKind.String
             ? p.GetString() ?? "" : "";
+        string note = primary == null && weekly != null
+            ? "\n(5h limit currently off — Codex counts weekly only)" : "";
 
         return new ToolUsage
         {
             Name = "CX",
             Primary = primary,
             Weekly = weekly,
-            Detail = $"Codex ({plan}) · live",
+            Detail = $"Codex ({plan}) · live{note}",
         };
     }
 
-    private static LimitInfo? ParseApiWindow(JsonElement rateLimit, string key)
+    private static (LimitInfo? Info, double? Seconds) ParseApiWindow(JsonElement rateLimit, string key)
     {
         if (!rateLimit.TryGetProperty(key, out var w) || w.ValueKind != JsonValueKind.Object)
-            return null;
+            return (null, null);
 
         double? pct = w.TryGetProperty("used_percent", out var up) && up.ValueKind == JsonValueKind.Number
             ? up.GetDouble() : null;
         DateTimeOffset? resets = w.TryGetProperty("reset_at", out var ra) && ra.ValueKind == JsonValueKind.Number
             ? DateTimeOffset.FromUnixTimeSeconds(ra.GetInt64()) : null;
+        double? seconds = w.TryGetProperty("limit_window_seconds", out var lw) && lw.ValueKind == JsonValueKind.Number
+            ? lw.GetDouble() : null;
 
-        return pct == null && resets == null ? null : new LimitInfo { Percent = pct, ResetsAt = resets };
+        return pct == null && resets == null ? (null, null)
+            : (new LimitInfo { Percent = pct, ResetsAt = resets }, seconds);
+    }
+
+    // ---- window classification ----------------------------------------------
+
+    /// <summary>A window longer than a day belongs in the weekly slot.</summary>
+    private const double LongWindowSeconds = 24 * 3600;
+
+    /// <summary>
+    /// Places each window into the 5h or weekly slot by its actual duration
+    /// instead of trusting primary/secondary order — Codex sometimes disables
+    /// the 5h limit and moves the weekly window into primary. When the
+    /// duration is missing, falls back to the traditional key-based mapping.
+    /// </summary>
+    internal static (LimitInfo? Short, LimitInfo? Long) AssignWindows(
+        (LimitInfo? Info, double? Seconds) primary,
+        (LimitInfo? Info, double? Seconds) secondary)
+    {
+        LimitInfo? shortW = null, longW = null;
+
+        void Place((LimitInfo? Info, double? Seconds) w, bool defaultIsShort)
+        {
+            if (w.Info == null) return;
+            bool isLong = w.Seconds is { } s ? s > LongWindowSeconds : !defaultIsShort;
+            if (isLong)
+            {
+                if (longW == null) longW = w.Info; else shortW ??= w.Info;
+            }
+            else
+            {
+                if (shortW == null) shortW = w.Info; else longW ??= w.Info;
+            }
+        }
+
+        Place(primary, defaultIsShort: true);
+        Place(secondary, defaultIsShort: false);
+        return (shortW, longW);
     }
 
     // ---- fallback: local session files -------------------------------------
@@ -144,8 +186,9 @@ public static class CodexCollector
                 if (!doc.RootElement.TryGetProperty("payload", out var payload)) continue;
                 if (!payload.TryGetProperty("rate_limits", out var rl)) continue;
 
-                var primary = ParseWindow(rl, "primary");
-                var weekly = ParseWindow(rl, "secondary");
+                var (primary, weekly) = AssignWindows(
+                    ParseWindow(rl, "primary"),
+                    ParseWindow(rl, "secondary"));
                 string plan = rl.TryGetProperty("plan_type", out var p) && p.ValueKind == JsonValueKind.String
                     ? p.GetString() ?? "" : "";
 
@@ -171,17 +214,22 @@ public static class CodexCollector
         return null;
     }
 
-    private static LimitInfo? ParseWindow(JsonElement rateLimits, string key)
+    private static (LimitInfo? Info, double? Seconds) ParseWindow(JsonElement rateLimits, string key)
     {
         if (!rateLimits.TryGetProperty(key, out var w) || w.ValueKind != JsonValueKind.Object)
-            return null;
+            return (null, null);
 
         double? pct = w.TryGetProperty("used_percent", out var up) && up.ValueKind == JsonValueKind.Number
             ? up.GetDouble() : null;
         DateTimeOffset? resets = w.TryGetProperty("resets_at", out var ra) && ra.ValueKind == JsonValueKind.Number
             ? DateTimeOffset.FromUnixTimeSeconds(ra.GetInt64()) : null;
+        double? seconds = w.TryGetProperty("window_minutes", out var wm) && wm.ValueKind == JsonValueKind.Number
+            ? wm.GetDouble() * 60
+            : w.TryGetProperty("limit_window_seconds", out var lw) && lw.ValueKind == JsonValueKind.Number
+                ? lw.GetDouble() : null;
 
-        return pct == null && resets == null ? null : new LimitInfo { Percent = pct, ResetsAt = resets };
+        return pct == null && resets == null ? (null, null)
+            : (new LimitInfo { Percent = pct, ResetsAt = resets }, seconds);
     }
 
     private static LimitInfo? ZeroIfExpired(LimitInfo? w) =>

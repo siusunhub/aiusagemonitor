@@ -106,7 +106,8 @@ public sealed class ToolVm : INotifyPropertyChanged
             (Row2Text, Row2BarWidth, Row2Brush) = RowFor(u.Weekly, tilde);
             (Ring1Geometry, Ring1Brush, Ring1CenterText) = RingFor(u.Primary, tilde);
             (Ring2Geometry, Ring2Brush, Ring2CenterText) = RingFor(u.Weekly, tilde);
-            Row1ResetText = CountdownFor(u.Primary?.ResetsAt);
+            // No short window (e.g. Codex weekly-only mode) — count down to the weekly reset instead.
+            Row1ResetText = CountdownFor(u.Primary?.ResetsAt ?? u.Weekly?.ResetsAt);
         }
         else
         {

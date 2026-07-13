@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private int _dragStartOffset;
     private bool _refreshing;
     private bool _menuOpen;
+    private DateTime? _fullscreenCoverSince;
 
     public MainWindow()
     {
@@ -52,7 +53,7 @@ public partial class MainWindow : Window
         // where the timer had to keep re-lifting the bar back on top.
         HwndSource.FromHwnd(_hwnd)?.AddHook(KeepTopMostHook);
 
-        var positionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        var positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         positionTimer.Tick += (_, _) => Reposition();
         positionTimer.Start();
 
@@ -135,11 +136,27 @@ public partial class MainWindow : Window
     private void Reposition()
     {
         if (_hwnd == IntPtr.Zero) return;
+        if (!_config.BarVisible) return;
         // Re-asserting topmost while the context menu is open would push the
         // bar above its own menu — skip until the menu closes.
         if (_menuOpen) return;
         var tb = TaskbarInterop.GetTaskbar(_config.MonitorIndex);
         if (tb == null) return;
+
+        // Topmost is global, not "topmost only over the taskbar". Hide while a
+        // foreground fullscreen/covering window owns the taskbar area, so the
+        // usage bar follows the taskbar instead of floating over that app.
+        if (TaskbarInterop.IsTaskbarCoveredByForeground(_config.MonitorIndex, _hwnd))
+        {
+            _fullscreenCoverSince ??= DateTime.UtcNow;
+            if (IsVisible && DateTime.UtcNow - _fullscreenCoverSince.Value >= TimeSpan.FromMilliseconds(700))
+            {
+                Hide();
+            }
+            return;
+        }
+        _fullscreenCoverSince = null;
+        if (!IsVisible) Show();
 
         double scale = TaskbarInterop.GetDpiForWindow(_hwnd) / 96.0;
         int widthPx = (int)Math.Round(ActualWidth * scale);

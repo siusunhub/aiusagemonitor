@@ -17,6 +17,23 @@ public partial class LoginWindow : Window
     private void OnReopen(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(_login.Url) { UseShellExecute = true });
 
+    private void OnPaste(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (Clipboard.ContainsText())
+            {
+                CodeBox.Text = Clipboard.GetText().Trim();
+                CodeBox.CaretIndex = CodeBox.Text.Length;
+            }
+        }
+        catch
+        {
+            // Clipboard can be locked by another process — ignore and let the user retry.
+        }
+        CodeBox.Focus();
+    }
+
     private async void OnOk(object sender, RoutedEventArgs e)
     {
         OkButton.IsEnabled = false;

@@ -125,6 +125,57 @@ public static class CodexAccounts
         SaveMeta(meta);
     }
 
+    /// <summary>
+    /// Promote a stored account to be the base: its store file becomes
+    /// auth_master.json and the previous base is kept as a regular account
+    /// under a new alias file (its old alias, or one derived from its email).
+    /// </summary>
+    public static void MakeBase(CodexAccount target)
+    {
+        if (target.IsMaster) return; // already the base
+        if (!File.Exists(target.StoreFile))
+            throw new InvalidOperationException($"Stored account file missing: {target.StoreFile}");
+
+        Directory.CreateDirectory(StoreDir);
+        EnsureMasterBackup();
+        if (!File.Exists(MasterFile))
+            throw new InvalidOperationException("No base account on file (auth_master.json missing).");
+
+        // Keep the active account's freshest tokens before moving files around.
+        var active = List().FirstOrDefault(a => a.IsActive);
+        if (active != null && File.Exists(CodexAuthPath))
+            File.Copy(CodexAuthPath, active.StoreFile, true);
+
+        var meta = LoadMeta();
+        var (mEmail, _) = InfoOf(MasterFile);
+        string oldAlias = UniqueAlias(meta.MasterAlias ?? mEmail?.Split('@')[0] ?? "base");
+        string parked = Path.Combine(StoreDir, oldAlias + ".json");
+
+        // Old base out of the way first, then the target into its place;
+        // roll back if the second move fails so no account file is lost.
+        File.Move(MasterFile, parked);
+        try { File.Move(target.StoreFile, MasterFile); }
+        catch { File.Move(parked, MasterFile); throw; }
+
+        meta.MasterAlias = target.Alias;
+        if (meta.ActiveAlias == target.Alias) meta.ActiveAlias = "master";
+        else if (meta.ActiveAlias == "master") meta.ActiveAlias = oldAlias;
+        SaveMeta(meta);
+    }
+
+    /// <summary>A valid, unused alias as close to <paramref name="desired"/> as possible.</summary>
+    private static string UniqueAlias(string desired)
+    {
+        string b = new string(desired.Where(char.IsLetterOrDigit).ToArray());
+        if (b.Length == 0) b = "base";
+        if (b.Length > 28) b = b[..28];
+        string candidate = b;
+        int n = 1;
+        while (!IsValidAlias(candidate) || File.Exists(Path.Combine(StoreDir, candidate + ".json")))
+            candidate = b + (++n);
+        return candidate;
+    }
+
     // ---- add / remove / rename ----------------------------------------------
 
     /// <summary>Runs `codex login` for a NEW account and stores it under the alias. Slow — browser sign-in.</summary>
@@ -159,6 +210,56 @@ public static class CodexAccounts
             File.Copy(CodexAuthPath, targetFile, true);
             var meta = LoadMeta();
             meta.ActiveAlias = alias; // the fresh login is now the active account
+            SaveMeta(meta);
+        }
+        catch
+        {
+            // Restore whatever was active before the attempt.
+            if (File.Exists(rollback)) File.Copy(rollback, CodexAuthPath, true);
+            throw;
+        }
+        finally
+        {
+            if (File.Exists(rollback)) File.Delete(rollback);
+        }
+    }
+
+    /// <summary>
+    /// Re-runs `codex login` for an EXISTING account (e.g. after its sign-in
+    /// expired) and overwrites its stored file, keeping the same alias. Slow —
+    /// browser sign-in. The account it stores is whatever is signed in, so the
+    /// user should log into the same account.
+    /// </summary>
+    public static async Task ReloginAccountAsync(CodexAccount account)
+    {
+        Directory.CreateDirectory(StoreDir);
+        EnsureMasterBackup();
+
+        // account.StoreFile is auth_master.json for the base, or <alias>.json otherwise.
+        var targetFile = account.StoreFile;
+
+        // Preserve the currently active account (unless it's the one being
+        // re-logged, whose tokens are dead anyway), then clear auth.json so
+        // `codex login` starts a fresh sign-in instead of reusing the session.
+        var active = List().FirstOrDefault(a => a.IsActive);
+        var rollback = Path.Combine(StoreDir, "auth_rollback.tmp");
+        if (File.Exists(CodexAuthPath))
+        {
+            if (active != null && !(active.IsMaster == account.IsMaster && active.Alias == account.Alias))
+                File.Copy(CodexAuthPath, active.StoreFile, true);
+            File.Copy(CodexAuthPath, rollback, true);
+            File.Delete(CodexAuthPath);
+        }
+
+        try
+        {
+            bool ok = await RunCodexLoginAsync();
+            if (!ok || !File.Exists(CodexAuthPath))
+                throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
+
+            File.Copy(CodexAuthPath, targetFile, true);
+            var meta = LoadMeta();
+            meta.ActiveAlias = account.IsMaster ? "master" : account.Alias; // fresh login is now active
             SaveMeta(meta);
         }
         catch

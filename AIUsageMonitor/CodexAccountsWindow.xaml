@@ -17,7 +17,11 @@
                      PreviewTextInput="OnAliasInput" VerticalContentAlignment="Center"/>
             <Button x:Name="RenameBtn" Content="Rename" Click="OnRename" Padding="8,3" Margin="0,0,6,0"/>
             <Button x:Name="AddBtn" Content="＋ Add (login…)" Click="OnAdd" Padding="8,3" Margin="0,0,6,0"/>
+            <Button x:Name="ReloginBtn" Content="↻ Re-login" Click="OnRelogin" Padding="8,3" Margin="0,0,6,0"
+                    ToolTip="Sign in again for the selected account (fixes &quot;sign-in expired&quot;), keeping its alias"/>
             <Button x:Name="RemoveBtn" Content="－ Remove" Click="OnRemove" Padding="8,3" Margin="0,0,6,0"/>
+            <Button x:Name="BaseBtn" Content="Set as base" Click="OnMakeBase" Padding="8,3" Margin="0,0,6,0"
+                    ToolTip="Make the selected account the base account (swaps the stored files)"/>
             <Button Content="Close" IsCancel="True" Padding="12,3"/>
         </StackPanel>
     </StackPanel>

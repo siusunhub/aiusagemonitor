@@ -106,8 +106,13 @@ public sealed class ToolVm : INotifyPropertyChanged
             (Row2Text, Row2BarWidth, Row2Brush) = RowFor(u.Weekly, tilde);
             (Ring1Geometry, Ring1Brush, Ring1CenterText) = RingFor(u.Primary, tilde);
             (Ring2Geometry, Ring2Brush, Ring2CenterText) = RingFor(u.Weekly, tilde);
-            // No short window (e.g. Codex weekly-only mode) — count down to the weekly reset instead.
-            Row1ResetText = CountdownFor(u.Primary?.ResetsAt ?? u.Weekly?.ResetsAt);
+            // When the weekly limit is exhausted it is the binding one — show its
+            // reset instead of the 5h countdown. Also fall back to weekly when
+            // no short window exists (e.g. Codex weekly-only mode).
+            bool weeklyExhausted = u.Weekly?.Percent is { } wp && wp >= 100;
+            Row1ResetText = CountdownFor(weeklyExhausted
+                ? u.Weekly?.ResetsAt ?? u.Primary?.ResetsAt
+                : u.Primary?.ResetsAt ?? u.Weekly?.ResetsAt);
         }
         else
         {

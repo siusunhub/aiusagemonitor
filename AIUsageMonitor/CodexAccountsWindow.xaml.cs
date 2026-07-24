@@ -115,6 +115,28 @@ public partial class CodexAccountsWindow : Window
         finally { SetBusy(false); }
     }
 
+    private async void OnRelogin(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } acc) { StatusText.Text = "Select an account first."; return; }
+
+        if (MessageBox.Show(this,
+                $"Sign in again for \"{acc.Alias}\"" + (string.IsNullOrEmpty(acc.Email) ? "" : $" ({acc.Email})") + "?\n\n" +
+                "A browser sign-in will open — log into the SAME account to refresh its expired session.",
+                "Codex accounts", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK)
+            return;
+
+        SetBusy(true);
+        StatusText.Text = "Waiting for Codex sign-in — complete the login in the browser…";
+        try
+        {
+            await CodexAccounts.ReloginAccountAsync(acc);
+            StatusText.Text = $"\"{acc.Alias}\" re-logged in and is now active.";
+            Reload();
+        }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
+        finally { SetBusy(false); }
+    }
+
     private void OnRemove(object sender, RoutedEventArgs e)
     {
         if (Selected is not { } acc) { StatusText.Text = "Select an account first."; return; }
@@ -133,9 +155,30 @@ public partial class CodexAccountsWindow : Window
         catch (Exception ex) { StatusText.Text = ex.Message; }
     }
 
+    private void OnMakeBase(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } acc) { StatusText.Text = "Select an account first."; return; }
+        if (acc.IsMaster) { StatusText.Text = "This account is already the base."; return; }
+
+        if (MessageBox.Show(this,
+                $"Make \"{acc.Alias}\" ({acc.Email}) the base account?\n\n" +
+                "Its stored file becomes auth_master.json and the current base is kept as a regular account.",
+                "Codex accounts", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            CodexAccounts.MakeBase(acc);
+            StatusText.Text = $"\"{acc.Alias}\" is now the base account.";
+            Reload();
+        }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+
     private void SetBusy(bool busy)
     {
-        AddBtn.IsEnabled = RenameBtn.IsEnabled = RemoveBtn.IsEnabled = AliasBox.IsEnabled = !busy;
+        AddBtn.IsEnabled = RenameBtn.IsEnabled = RemoveBtn.IsEnabled = BaseBtn.IsEnabled
+            = ReloginBtn.IsEnabled = AliasBox.IsEnabled = !busy;
         Cursor = busy ? Cursors.Wait : null;
     }
 }

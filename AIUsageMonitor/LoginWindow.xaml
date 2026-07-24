@@ -10,8 +10,18 @@
             1. Sign in and click Authorize.<LineBreak/>
             2. Copy the code shown afterwards and paste it below.
         </TextBlock>
-        <TextBox x:Name="CodeBox" Margin="0,12,0,4" Padding="6,4"
-                 FontFamily="Consolas" FontSize="12"/>
+        <Grid Margin="0,12,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="CodeBox" Padding="6,4"
+                     FontFamily="Consolas" FontSize="12" VerticalContentAlignment="Center"/>
+            <Button Grid.Column="1" Click="OnPaste" Margin="4,0,0,0" Padding="6,2"
+                    ToolTip="Paste code from clipboard"
+                    Content="&#xE77F;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                    VerticalAlignment="Stretch"/>
+        </Grid>
         <TextBlock x:Name="ErrorText" Foreground="IndianRed" TextWrapping="Wrap" Margin="0,4"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
             <Button Content="Reopen browser" Click="OnReopen" Padding="10,4" Margin="0,0,8,0"/>

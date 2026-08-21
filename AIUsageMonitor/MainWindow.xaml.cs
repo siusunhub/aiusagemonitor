@@ -22,6 +22,10 @@ public partial class MainWindow : Window
     private bool _menuOpen;
     private DateTime? _fullscreenCoverSince;
 
+    private ToolUsage? _lastClaude;
+    private ToolUsage? _lastCodex;
+    private ToolUsage? _lastAntigravity;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -61,7 +65,7 @@ public partial class MainWindow : Window
         {
             Interval = TimeSpan.FromSeconds(Math.Max(15, _config.RefreshSeconds))
         };
-        refreshTimer.Tick += async (_, _) => await RefreshAsync();
+        refreshTimer.Tick += async (_, _) => await RefreshAsync(force: false);
         refreshTimer.Start();
 
         // Keep the ⟳ reset countdown ticking between data refreshes.
@@ -76,23 +80,36 @@ public partial class MainWindow : Window
 
         Reposition();
         if (!_config.BarVisible) Hide();
-        _ = RefreshAsync();
+        _ = RefreshAsync(force: true);
     }
 
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(bool force = false)
     {
         if (_refreshing) return;
         _refreshing = true;
         try
         {
-            var claudeTask = ClaudeCollector.CollectAsync();
-            var codexTask = CodexCollector.CollectAsync();
-            var antigravityTask = AntigravityCollector.CollectAsync();
+            var claudeTask = (force || _lastClaude == null || !_lastClaude.ShouldPauseCheck())
+                ? ClaudeCollector.CollectAsync()
+                : Task.FromResult(_lastClaude);
+
+            var codexTask = (force || _lastCodex == null || !_lastCodex.ShouldPauseCheck())
+                ? CodexCollector.CollectAsync()
+                : Task.FromResult(_lastCodex);
+
+            var antigravityTask = (force || _lastAntigravity == null || !_lastAntigravity.ShouldPauseCheck())
+                ? AntigravityCollector.CollectAsync()
+                : Task.FromResult(_lastAntigravity);
+
             await Task.WhenAll(claudeTask, codexTask, antigravityTask);
 
-            _claude.Update(claudeTask.Result);
-            _codex.Update(codexTask.Result);
-            _antigravity.Update(antigravityTask.Result);
+            _lastClaude = claudeTask.Result;
+            _lastCodex = codexTask.Result;
+            _lastAntigravity = antigravityTask.Result;
+
+            _claude.Update(_lastClaude);
+            _codex.Update(_lastCodex);
+            _antigravity.Update(_lastAntigravity);
         }
         finally
         {
@@ -231,7 +248,7 @@ public partial class MainWindow : Window
         if (e.ClickCount == 2 && ClaudeCollector.NeedsLogin)
         {
             var dlg = new LoginWindow();
-            if (dlg.ShowDialog() == true) _ = RefreshAsync();
+            if (dlg.ShowDialog() == true) _ = RefreshAsync(force: true);
             return;
         }
 
@@ -264,14 +281,14 @@ public partial class MainWindow : Window
         var menu = new ContextMenu();
 
         var refresh = new MenuItem { Header = "Refresh Now" };
-        refresh.Click += async (_, _) => await RefreshAsync();
+        refresh.Click += async (_, _) => await RefreshAsync(force: true);
         menu.Items.Add(refresh);
 
         var login = new MenuItem { Header = "Claude Login…" };
         login.Click += async (_, _) =>
         {
             var dlg = new LoginWindow();
-            if (dlg.ShowDialog() == true) await RefreshAsync();
+            if (dlg.ShowDialog() == true) await RefreshAsync(force: true);
         };
         menu.Items.Add(login);
 
@@ -437,7 +454,7 @@ public partial class MainWindow : Window
                     try
                     {
                         CodexAccounts.Switch(captured);
-                        await RefreshAsync();
+                        await RefreshAsync(force: true);
                     }
                     catch (Exception ex)
                     {
@@ -457,7 +474,7 @@ public partial class MainWindow : Window
         configure.Click += async (_, _) =>
         {
             new CodexAccountsWindow().ShowDialog();
-            await RefreshAsync();
+            await RefreshAsync(force: true);
         };
         parent.Items.Add(configure);
     }

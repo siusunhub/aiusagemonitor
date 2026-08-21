@@ -29,4 +29,32 @@ public sealed class ToolUsage
 
     /// <summary>True when data came from a stale/estimated source.</summary>
     public bool IsEstimate { get; init; }
+
+    /// <summary>
+    /// Returns true if 5h or Weekly limit is >= 100% and the earliest applicable reset time is more than 1 minute away.
+    /// </summary>
+    public bool ShouldPauseCheck(DateTimeOffset? now = null)
+    {
+        var current = now ?? DateTimeOffset.UtcNow;
+        DateTimeOffset? nextReset = null;
+
+        if (Primary?.Percent is { } pp && pp >= 100 && Primary.ResetsAt is { } pr && pr > current)
+        {
+            nextReset = pr;
+        }
+
+        if (Weekly?.Percent is { } wp && wp >= 100 && Weekly.ResetsAt is { } wr && wr > current)
+        {
+            if (nextReset == null || wr < nextReset.Value)
+                nextReset = wr;
+        }
+
+        if (nextReset is { } r)
+        {
+            return (r - current) > TimeSpan.FromMinutes(1);
+        }
+
+        return false;
+    }
 }
+

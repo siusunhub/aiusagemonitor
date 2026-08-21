@@ -6,7 +6,7 @@ namespace AIUsageMonitor;
 public partial class App : Application
 {
     /// <summary>Application version (record only).</summary>
-    public const string Version = "v0.6";
+    public const string Version = "v0.7";
 
     /// <summary>Write diagnostic entries to %APPDATA%\AIUsageMonitor\claude_api_debug.log.</summary>
     public static readonly bool EnableDebugLog = false;
@@ -39,7 +39,7 @@ public partial class App : Application
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Refresh Now", null, async (_, _) =>
         {
-            if (MainWindow is MainWindow w) await w.RefreshAsync();
+            if (MainWindow is MainWindow w) await w.RefreshAsync(force: true);
         });
 
         var codexMenu = new System.Windows.Forms.ToolStripMenuItem("Codex Account...");
@@ -127,7 +127,7 @@ public partial class App : Application
                     try
                     {
                         CodexAccounts.Switch(captured);
-                        if (MainWindow is MainWindow w) await w.RefreshAsync();
+                        if (MainWindow is MainWindow w) await w.RefreshAsync(force: true);
                     }
                     catch (Exception ex)
                     {
@@ -149,7 +149,7 @@ public partial class App : Application
         parent.DropDownItems.Add("Accounts Setup", null, async (_, _) =>
         {
             new CodexAccountsWindow().ShowDialog();
-            if (MainWindow is MainWindow w) await w.RefreshAsync();
+            if (MainWindow is MainWindow w) await w.RefreshAsync(force: true);
         });
     }
 

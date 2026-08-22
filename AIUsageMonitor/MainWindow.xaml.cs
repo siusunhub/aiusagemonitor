@@ -79,7 +79,15 @@ public partial class MainWindow : Window
         countdownTimer.Start();
 
         Reposition();
-        if (!_config.BarVisible) Hide();
+        if (!_config.BarVisible)
+        {
+            Hide();
+            (Application.Current as App)?.SetTrayVisible(true);
+        }
+        else
+        {
+            (Application.Current as App)?.SetTrayVisible(false);
+        }
         _ = RefreshAsync(force: true);
     }
 
@@ -218,6 +226,7 @@ public partial class MainWindow : Window
         {
             Hide();
         }
+        (Application.Current as App)?.SetTrayVisible(!visible);
     }
 
     public int CurrentMonitorIndex => _config.MonitorIndex;
@@ -279,6 +288,14 @@ public partial class MainWindow : Window
     private void BuildContextMenu()
     {
         var menu = new ContextMenu();
+
+        var versionItem = new MenuItem
+        {
+            Header = $"AI Usage Monitor {App.Version}",
+            IsEnabled = false,
+        };
+        menu.Items.Add(versionItem);
+        menu.Items.Add(new Separator());
 
         var refresh = new MenuItem { Header = "Refresh Now" };
         refresh.Click += async (_, _) => await RefreshAsync(force: true);

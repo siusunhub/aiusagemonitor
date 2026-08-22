@@ -1,32 +1,38 @@
 # AI Usage Monitor
 
-A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing your real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity CLI (AG)**.
+A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity CLI (AG)**.
 
 <p align="center">
   <img src="assets/aiusagemonitorsample.png" alt="AI Usage Monitor Screenshot"><br>
   <img src="assets/aiusagemonitorsample2.png" alt="AI Usage Monitor Screenshot 2">
 </p>
 
-
+---
 
 ## Features
 
-- **Seamless Multi-Monitor Taskbar Integration**:
-  - Docks over the Windows taskbar next to the tray icons (`TrayNotifyWnd`).
-  - Automatically adjusts position, scale, and layout every 2 seconds to adapt to taskbar size, resolution, and DPI changes.
+- **Seamless Taskbar Integration**:
+  - Docks neatly over the Windows taskbar next to the tray icons (`TrayNotifyWnd`).
+  - Corrects Windows 11 taskbar bounding heights to ensure pixel-perfect vertical alignment with the visible bar.
+  - Automatically adapts to resolution changes, taskbar scaling, and per-monitor DPI settings.
   - **Multi-Monitor Support**: Select which monitor/taskbar to dock on (Primary or any Secondary taskbar) via the context menu.
-  - **Visibility Toggling**: Hide the main bar from the desktop using "Hide bar" and show it again via the system tray context menu.
-- **Interactive Controls**:
-  - **Drag Repositioning**: Click and drag horizontally to place the widget exactly where you want it (position is saved to config).
-  - **Context Menu Options**: Toggle individual segments, manually refresh, trigger logins, switch accounts, select monitor, configure Windows autostart, or exit.
-  - **System Tray Icon**: A persistent tray icon supporting refreshing, showing/hiding the bar, monitor selection, account selection, and application exit.
-- **Dual-Window Metrics**: Visualizes usage for two critical windows (e.g., short-term 5-hour and weekly) using TrafficMonitor-style dual-row mini bars.
-- **Remaining Quota Mode**: Toggles display between **% used** and **% remaining** (quota left) via the context menu or `ShowRemaining` config setting. Tooltips and detail views automatically adapt to display "left" or "free" values.
-- **Configurable Color Coding**: Automatically color-codes bars based on utilization limits (thresholds configurable in `config.json` via `YellowAtPercent` / `RedAtPercent`):
+- **Smart System Tray Icon & Visibility Toggling**:
+  - **Auto-Hiding Tray Icon**: When the status bar is visible on the desktop, the tray icon is hidden to keep your system tray clean. When the status bar is hidden via "Hide Bar", the tray icon automatically appears.
+  - **Quick Restore**: Double-clicking the tray icon immediately restores the status bar.
+- **Context Menus & Version Display**:
+  - Displays the current application version (e.g. `AI Usage Monitor v0.8`) at the very top of both the status bar and tray right-click menus as a reference header.
+  - Quick access to refresh metrics, sign into Claude Code, switch Codex accounts, toggle individual tool segments, change display modes, and configure autostart.
+- **Dual Display Modes**:
+  - **Dual-Row Mini Bars**: TrafficMonitor-style dual bars for short-term (5-hour) and long-term (weekly) quotas.
+  - **Compact Circles**: Minimalist circular progress rings showing quota status with center percentage readouts.
+- **Quota Modes & Countdown Timers**:
+  - **Remaining Quota Mode**: Toggle display between **% used** and **% remaining** (quota left).
+  - **Show Reset Time**: Displays a real-time countdown to the next quota reset.
+  - **Intelligent Polling Optimization**: Automatically pauses background API polling when 100% quota is reached until right before the reset time, saving unnecessary network requests.
+- **Configurable Color Coding**:
   - 🟢 **Green**: `< 70%` utilization (default)
   - 🟡 **Amber**: `70% – 90%` utilization (default)
   - 🔴 **Red**: `> 90%` utilization (default)
-
 
 ---
 
@@ -36,7 +42,7 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
 | :--- | :--- | :--- |
 | **Claude Code (CC)** | Live OAuth utilization endpoint (`/api/oauth/usage`). Fully supports widget-based OAuth sign-in and token auto-refresh. | Scans local transcript JSONL files in `~/.claude/projects/` to calculate input/output token usage over the last 5 hours. |
 | **Codex (CX)** | Live backend API (`/backend-api/wham/usage`) using the OAuth token stored by Codex in `~/.codex/auth.json`. | Parses rate limit payloads from the tail of the newest local rollout session files in `~/.codex/sessions/`. |
-| **Antigravity (AG)** | Querying the local `language_server_windows_x64.exe` instance. CSRF token and port are automatically discovered via WMI and TCP state. | Counts the number of active conversation database files (`*.db`) modified today in `~/.gemini/antigravity-cli/conversations/`. |
+| **Antigravity (AG)** | Querying the local `language_server_windows_x64.exe` instance. CSRF token and port are automatically discovered via WMI and TCP state. | Counts active conversation database files (`*.db`) modified today in `~/.gemini/antigravity-cli/conversations/`. |
 
 ---
 
@@ -46,11 +52,15 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
   <img src="assets/codexswitch.png" alt="Codex Account Switch UI">
 </p>
 
-You can manage and switch between multiple Codex accounts seamlessly via the widget:
-- Stores separate account sessions in `%APPDATA%\AIUsageMonitor\codex/` and swaps active tokens in `~/.codex/auth.json`.
-- Automatically backs up your initial base session as `auth_master.json`.
-- Syncs token refreshes back to store files before switching, preventing token expiration or session loss.
-- **Account Management UI**: Right-click → **Codex account** → **Configure accounts...** opens a dedicated window where you can list all profiles, asynchronously fetch their real-time usage (primary & weekly) with countdown timers, rename aliases, add new accounts (triggers `codex login` flow), or remove them.
+Manage and switch between multiple Codex accounts directly from the widget:
+- Stores separate account sessions in `%APPDATA%\AIUsageMonitor\codex/` and hot-swaps active credentials in `~/.codex/auth.json`.
+- Backs up your base session as `auth_master.json`.
+- **Account Management UI** (Right-click → **Codex Account...** → **Accounts Setup**):
+  - List all saved accounts with live primary & weekly quota usage and countdowns.
+  - **Add Account**: Trigger `codex login` flow to register new profiles.
+  - **Re-login (`↻ Re-login`)**: Refresh expired sessions in-place while retaining custom aliases.
+  - **Set as Base (`Set as base`)**: Promote any profile to become the primary master account.
+  - Rename custom aliases and delete unused accounts.
 
 ---
 
@@ -61,7 +71,7 @@ You can manage and switch between multiple Codex accounts seamlessly via the wid
 - **.NET 10 Desktop Runtime** (to run the executable)
 
 ### Building
-Open the solution `AIUsageMonitor.sln` in Visual Studio 2022, or build via the command line:
+Open `AIUsageMonitor.sln` in Visual Studio, or build via PowerShell:
 
 ```powershell
 # Build in Debug mode
@@ -71,12 +81,12 @@ dotnet build -c Debug
 dotnet publish AIUsageMonitor\AIUsageMonitor.csproj -c Release
 ```
 
-The published artifact will be located at:
+The published standalone executable will be located at:
 `publish\AIUsageMonitor.exe`
 
 ### Configuration Files
-- **App Data**: `%APPDATA%\AIUsageMonitor\`
-- **Settings**: `config.json` (controls refresh interval, visual positioning offsets, monitor selection, bar visibility, color thresholds, remaining quota toggle, and enabled segments).
-- **OAuth Session**: `claude_oauth.json` (stores access/refresh tokens securely).
-- **Codex Accounts Store**: `codex/` (contains credentials for all configured Codex accounts).
-- **Debug Logs**: `claude_api_debug.log` (tracks Claude API requests and token rotation states; disabled by default. To enable, set `EnableDebugLog = true` in [App.xaml.cs](file:///C:/Users/Jacky/OneDrive/github-project/aiusagemonitor/AIUsageMonitor/App.xaml.cs) and rebuild the application).
+- **App Data Folder**: `%APPDATA%\AIUsageMonitor\`
+- **Settings (`config.json`)**: Controls refresh interval, visual positioning offsets, monitor selection, bar visibility, color thresholds, remaining quota toggle, and enabled segments.
+- **OAuth Session (`claude_oauth.json`)**: Stores Claude access and refresh tokens.
+- **Codex Store (`codex/`)**: Contains session data for configured Codex accounts.
+- **Debug Logs (`claude_api_debug.log`)**: Diagnostic logging (enabled via `EnableDebugLog = true` in [App.xaml.cs](file:///c:/Users/Jacky/OneDrive/github-project/aiusagemonitor/AIUsageMonitor/App.xaml.cs)).

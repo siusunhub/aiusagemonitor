@@ -27,16 +27,34 @@ public partial class App : Application
         SetupTrayIcon();
     }
 
+    public void SetTrayVisible(bool visible)
+    {
+        if (_tray != null) _tray.Visible = visible;
+    }
+
     private void SetupTrayIcon()
     {
+        var config = Config.Load();
         _tray = new System.Windows.Forms.NotifyIcon
         {
             Icon = CreateIcon(),
-            Text = "AI Usage Monitor",
-            Visible = true,
+            Text = $"AI Usage Monitor {Version}",
+            Visible = !config.BarVisible,
+        };
+        _tray.DoubleClick += (_, _) =>
+        {
+            if (MainWindow is MainWindow w) w.SetBarVisible(true);
         };
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
+
+        var versionItem = new System.Windows.Forms.ToolStripMenuItem($"AI Usage Monitor {Version}")
+        {
+            Enabled = false,
+        };
+        menu.Items.Add(versionItem);
+        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+
         menu.Items.Add("Refresh Now", null, async (_, _) =>
         {
             if (MainWindow is MainWindow w) await w.RefreshAsync(force: true);

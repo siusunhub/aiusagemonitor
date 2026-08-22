@@ -19,6 +19,19 @@ public static class TaskbarInterop
     [DllImport("user32.dll")] private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
 
     private static readonly IntPtr HWND_TOPMOST = new(-1);
     private const uint SWP_NOACTIVATE = 0x0010;
@@ -34,6 +47,7 @@ public static class TaskbarInterop
     {
         var tray = FindWindow("Shell_TrayWnd", null);
         if (tray == IntPtr.Zero || !GetWindowRect(tray, out var barRect)) return null;
+        barRect = ClipToReservedBand(barRect, tray);
 
         // TrayNotifyWnd = clock + tray icons area on the right end of the bar.
         int trayLeft = barRect.Right;
@@ -53,13 +67,48 @@ public static class TaskbarInterop
             if (index - 1 < secondaries.Count)
             {
                 var secondary = secondaries[index - 1];
-                var r = secondary.Rect;
+                var r = ClipToReservedBand(secondary.Rect, secondary.Hwnd);
                 // Secondary taskbars have no TrayNotifyWnd — anchor at the right
                 // edge; the user can drag left if their setup shows a clock there.
                 return new TaskbarInfo(r, r.Right - 8, secondary.Hwnd);
             }
         }
         return GetTaskbar();
+    }
+
+    /// <summary>
+    /// Shrinks a taskbar window rect to the screen area the taskbar really occupies.
+    /// Windows 11's Shell_TrayWnd window is taller than the bar it paints (its rect
+    /// reaches ~36px above the visible taskbar), so centring inside the raw rect
+    /// lifts the widget off the bar. The reserved area — the gap between the monitor
+    /// rect and its work area — matches what's actually drawn. An auto-hidden
+    /// taskbar reserves nothing, so the window rect is kept in that case.
+    /// </summary>
+    private static RECT ClipToReservedBand(RECT bar, IntPtr taskbarHwnd)
+    {
+        var monitor = MonitorFromWindow(taskbarHwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return bar;
+
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref info)) return bar;
+
+        RECT screen = info.rcMonitor, work = info.rcWork;
+        const int edgeTolerance = 4;
+        var clipped = bar;
+
+        // Only the edge the taskbar is docked to gets trimmed.
+        if (work.Bottom < screen.Bottom && bar.Bottom >= screen.Bottom - edgeTolerance)
+            clipped.Top = Math.Max(bar.Top, work.Bottom);
+        else if (work.Top > screen.Top && bar.Top <= screen.Top + edgeTolerance)
+            clipped.Bottom = Math.Min(bar.Bottom, work.Top);
+        else if (work.Right < screen.Right && bar.Right >= screen.Right - edgeTolerance)
+            clipped.Left = Math.Max(bar.Left, work.Right);
+        else if (work.Left > screen.Left && bar.Left <= screen.Left + edgeTolerance)
+            clipped.Right = Math.Min(bar.Right, work.Left);
+
+        // Another docked appbar could shrink the work area past the taskbar —
+        // fall back to the window rect rather than return a collapsed band.
+        return clipped.Bottom > clipped.Top && clipped.Right > clipped.Left ? clipped : bar;
     }
 
     /// <summary>Rects of all secondary-monitor taskbars, ordered left-to-right.</summary>

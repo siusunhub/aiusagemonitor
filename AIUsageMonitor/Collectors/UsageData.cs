@@ -30,12 +30,23 @@ public sealed class ToolUsage
     /// <summary>True when data came from a stale/estimated source.</summary>
     public bool IsEstimate { get; init; }
 
+    /// <summary>Timestamp when this usage snapshot was fetched.</summary>
+    public DateTimeOffset FetchedAt { get; init; } = DateTimeOffset.UtcNow;
+
     /// <summary>
-    /// Returns true if 5h or Weekly limit is >= 100% and the earliest applicable reset time is more than 1 minute away.
+    /// Returns true if 5h or Weekly limit is >= 100%, the earliest applicable reset time is more than 1 minute away,
+    /// and less than 5 minutes have elapsed since the last update.
     /// </summary>
     public bool ShouldPauseCheck(DateTimeOffset? now = null)
     {
         var current = now ?? DateTimeOffset.UtcNow;
+
+        // Limit the pause to at most 5 minutes so policy-based resets / early changes are picked up
+        if (current - FetchedAt >= TimeSpan.FromMinutes(5))
+        {
+            return false;
+        }
+
         DateTimeOffset? nextReset = null;
 
         if (Primary?.Percent is { } pp && pp >= 100 && Primary.ResetsAt is { } pr && pr > current)

@@ -69,12 +69,17 @@ public static class CodexCollector
         string note = primary == null && weekly != null
             ? "\n(5h limit currently off — Codex counts weekly only)" : "";
 
+        var (email, _) = CodexAccounts.InfoOf(authPath);
+        string header = !string.IsNullOrEmpty(email)
+            ? (!string.IsNullOrEmpty(plan) ? $"{email} · {plan}" : email)
+            : (!string.IsNullOrEmpty(plan) ? $"Codex ({plan}) · live" : "Codex · live");
+
         return new ToolUsage
         {
             Name = "CX",
             Primary = primary,
             Weekly = weekly,
-            Detail = $"Codex ({plan}) · live{note}",
+            Detail = $"{header}{note}",
         };
     }
 

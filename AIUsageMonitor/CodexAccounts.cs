@@ -462,7 +462,7 @@ public static class CodexAccounts
     }
 
     /// <summary>Email (from the id_token JWT) and account id inside an auth.json file.</summary>
-    private static (string? Email, string? Id) InfoOf(string path)
+    internal static (string? Email, string? Id) InfoOf(string path)
     {
         try
         {

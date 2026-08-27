@@ -120,7 +120,8 @@ public static class ClaudeCollector
 
         // Any further windows (e.g. model-specific weekly limits like Opus or
         // Fable) go into the tooltip, whatever their key names are.
-        var detail = "Claude Code · live";
+        string? plan = ReadCliPlan();
+        var detail = !string.IsNullOrEmpty(plan) ? $"Claude Code ({plan}) · live" : "Claude Code · live";
         foreach (var prop in root.EnumerateObject())
         {
             if (prop.Name is "five_hour" or "seven_day") continue;
@@ -137,6 +138,21 @@ public static class ClaudeCollector
             Weekly = sevenDay,
             Detail = detail,
         };
+    }
+
+    private static string? ReadCliPlan()
+    {
+        try
+        {
+            var credPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".claude", ".credentials.json");
+            if (!File.Exists(credPath)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(credPath));
+            if (!doc.RootElement.TryGetProperty("claudeAiOauth", out var oauth)) return null;
+            return oauth.TryGetProperty("subscriptionType", out var st) ? st.GetString() : null;
+        }
+        catch { return null; }
     }
 
     /// <summary>Access token from Claude Code's own credentials file (read-only; may be stale).</summary>

@@ -6,6 +6,79 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         ResizeMode="NoResize" SizeToContent="WidthAndHeight">
 
+    <Window.Resources>
+        <Style x:Key="WidgetTooltipCard" TargetType="ToolTip">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="#F818181A"
+                                BorderBrush="#55FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14,12"
+                                MinWidth="220">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" ShadowDepth="4" Direction="270" Opacity="0.55" Color="#000000"/>
+                            </Border.Effect>
+                            <StackPanel>
+                                <!-- Header: Tool Title -->
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="{Binding FullName}" Foreground="#FFFFFF"
+                                               FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Border Background="#30FFFFFF" CornerRadius="4" Padding="6,2"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Visibility="{Binding ResetVisibility}">
+                                        <TextBlock Text="{Binding Row1ResetText}" Foreground="#EAEAEA"
+                                                   FontSize="11" FontWeight="SemiBold"/>
+                                    </Border>
+                                </DockPanel>
+
+                                <!-- Subtitle / Account Detail -->
+                                <TextBlock Text="{Binding DetailText}" Foreground="#B0B0B8"
+                                           FontSize="12" Margin="0,0,0,6" TextWrapping="Wrap"
+                                           Visibility="{Binding DetailVisibility}"/>
+
+                                <Rectangle Height="1" Fill="#30FFFFFF" Margin="0,2,0,8"
+                                           Visibility="{Binding RowsVisibility}"/>
+
+                                <!-- Fallback / Status message (when no limit data) -->
+                                <TextBlock Text="{Binding FallbackText}" Foreground="#F0F0F0"
+                                           FontSize="13" FontWeight="SemiBold" Margin="0,2"
+                                           Visibility="{Binding FallbackVisibility}"/>
+
+                                <!-- 5h Limit Row -->
+                                <StackPanel Margin="0,3" Visibility="{Binding Row1Visibility}">
+                                    <DockPanel>
+                                        <TextBlock Text="5-Hour Window" Foreground="#D0D0D0" FontSize="12" FontWeight="Medium"/>
+                                        <TextBlock Text="{Binding Row1Text}" Foreground="{Binding Row1Brush}"
+                                                   FontWeight="Bold" FontSize="13" DockPanel.Dock="Right"/>
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding Row1ResetFull}" Foreground="#9E9EA6"
+                                               FontSize="11" Margin="0,2,0,0"/>
+                                </StackPanel>
+
+                                <!-- Weekly Limit Row -->
+                                <StackPanel Margin="0,6,0,2" Visibility="{Binding Row2Visibility}">
+                                    <DockPanel>
+                                        <TextBlock Text="Weekly Window" Foreground="#D0D0D0" FontSize="12" FontWeight="Medium"/>
+                                        <TextBlock Text="{Binding Row2Text}" Foreground="{Binding Row2Brush}"
+                                                   FontWeight="Bold" FontSize="13" DockPanel.Dock="Right"/>
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding Row2ResetFull}" Foreground="#9E9EA6"
+                                               FontSize="11" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Border x:Name="RootBorder" CornerRadius="6" Background="#D01F1F1F"
             BorderBrush="#30FFFFFF" BorderThickness="1" Padding="8,2">
         <ItemsControl x:Name="ToolsList">
@@ -17,7 +90,15 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal" Margin="4,0"
-                                ToolTip="{Binding Tooltip}" Visibility="{Binding Visibility}">
+                                Visibility="{Binding Visibility}"
+                                ToolTipService.Placement="Top"
+                                ToolTipService.VerticalOffset="-8"
+                                ToolTipService.InitialShowDelay="100"
+                                ToolTipService.BetweenShowDelay="0"
+                                ToolTipService.ShowDuration="60000">
+                        <StackPanel.ToolTip>
+                            <ToolTip Style="{StaticResource WidgetTooltipCard}"/>
+                        </StackPanel.ToolTip>
                         <TextBlock Text="|" Foreground="#50FFFFFF" FontSize="12"
                                    VerticalAlignment="Center" Margin="0,0,8,0"
                                    Visibility="{Binding SeparatorVisibility}"/>

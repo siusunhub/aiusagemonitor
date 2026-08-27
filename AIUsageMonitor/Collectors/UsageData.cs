@@ -7,7 +7,7 @@ public sealed class LimitInfo
     public DateTimeOffset? ResetsAt { get; init; }
 
     public string ResetText =>
-        ResetsAt is { } r ? $"resets {r.ToLocalTime():ddd HH:mm}" : "";
+        ResetsAt is { } r ? $"resets {r.ToLocalTime().ToString("dd MMM yyyy (ddd) HH:mm", System.Globalization.CultureInfo.InvariantCulture)}" : "";
 }
 
 /// <summary>Usage snapshot for one tool.</summary>

@@ -10,9 +10,9 @@ namespace AIUsageMonitor;
 public partial class MainWindow : Window
 {
     private readonly Config _config = Config.Load();
-    private readonly ToolVm _claude = new("CC");
-    private readonly ToolVm _codex = new("CX");
-    private readonly ToolVm _antigravity = new("AG");
+    private readonly ToolVm _claude = new("CC", "Claude Code");
+    private readonly ToolVm _codex = new("CX", "OpenAI Codex");
+    private readonly ToolVm _antigravity = new("AG", "Antigravity");
 
     private IntPtr _hwnd;
     private bool _dragging;
@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private int _dragStartOffset;
     private bool _refreshing;
     private bool _menuOpen;
+    private bool _toolTipOpen;
     private DateTime? _fullscreenCoverSince;
 
     private ToolUsage? _lastClaude;
@@ -40,6 +41,11 @@ public partial class MainWindow : Window
         _antigravity.SetVisible(_config.ShowAntigravity);
         UpdateSeparators();
         BuildContextMenu();
+
+        EventManager.RegisterClassHandler(typeof(FrameworkElement), ToolTipService.ToolTipOpeningEvent,
+            new ToolTipEventHandler((_, _) => _toolTipOpen = true));
+        EventManager.RegisterClassHandler(typeof(FrameworkElement), ToolTipService.ToolTipClosingEvent,
+            new ToolTipEventHandler((_, _) => _toolTipOpen = false));
 
         MouseLeftButtonDown += OnDragStart;
         MouseMove += OnDragMove;
@@ -143,9 +149,9 @@ public partial class MainWindow : Window
     private IntPtr KeepTopMostHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         // Force ourselves back to the top of the topmost band whenever Windows
-        // tries to reorder us — except while our own context menu is open
-        // (then the menu popup must stay above the bar).
-        if (msg == WM_WINDOWPOSCHANGING && !_menuOpen)
+        // tries to reorder us — except while our own context menu or tooltip is open
+        // (then the menu/tooltip popup must stay above the bar).
+        if (msg == WM_WINDOWPOSCHANGING && !_menuOpen && !_toolTipOpen)
         {
             var wp = System.Runtime.InteropServices.Marshal.PtrToStructure<WINDOWPOS>(lParam);
             if (wp.hwndInsertAfter != HWND_TOPMOST)
@@ -162,9 +168,9 @@ public partial class MainWindow : Window
     {
         if (_hwnd == IntPtr.Zero) return;
         if (!_config.BarVisible) return;
-        // Re-asserting topmost while the context menu is open would push the
-        // bar above its own menu — skip until the menu closes.
-        if (_menuOpen) return;
+        // Re-asserting topmost while the context menu or tooltip is open would push the
+        // bar above its own popups — skip until they close.
+        if (_menuOpen || _toolTipOpen) return;
         var tb = TaskbarInterop.GetTaskbar(_config.MonitorIndex);
         if (tb == null) return;
 

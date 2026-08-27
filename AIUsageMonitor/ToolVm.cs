@@ -37,6 +37,10 @@ public sealed class ToolVm : INotifyPropertyChanged
     private ToolUsage? _last;
 
     public string Name { get; }
+    public string FullName { get; }
+    public string DetailText { get; private set; } = "";
+    public string Row1ResetFull { get; private set; } = "";
+    public string Row2ResetFull { get; private set; } = "";
 
     // 5-hour row
     public string Row1Text { get; private set; } = "";
@@ -68,10 +72,17 @@ public sealed class ToolVm : INotifyPropertyChanged
     public Visibility FallbackVisibility => _hasRows ? Visibility.Collapsed : Visibility.Visible;
     public Visibility SeparatorVisibility => _showSeparator ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ResetVisibility => _hasRows && ShowResetTime ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DetailVisibility => string.IsNullOrWhiteSpace(DetailText) ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility Row1Visibility => (!string.IsNullOrEmpty(Row1Text) && Row1Text != "–") || _hasRows ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility Row2Visibility => (!string.IsNullOrEmpty(Row2Text) && Row2Text != "–") || _hasRows ? Visibility.Visible : Visibility.Collapsed;
 
     public bool IsShown => _show;
 
-    public ToolVm(string name) => Name = name;
+    public ToolVm(string name, string fullName = "")
+    {
+        Name = name;
+        FullName = string.IsNullOrEmpty(fullName) ? name : fullName;
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -120,7 +131,12 @@ public sealed class ToolVm : INotifyPropertyChanged
             Row1ResetText = "";
         }
 
-        var lines = new List<string> { u.Detail };
+        DetailText = u.Detail ?? "";
+        Row1ResetFull = u.Primary?.ResetText ?? "";
+        Row2ResetFull = u.Weekly?.ResetText ?? "";
+
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(u.Detail)) lines.Add(u.Detail);
         string TipFor(LimitInfo l) => l.Percent is { } p
             ? (ShowRemaining ? $"{100 - p:0.#}% left" : $"{p:0.#}% used")
             : "?";

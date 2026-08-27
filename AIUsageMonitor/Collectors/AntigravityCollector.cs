@@ -92,6 +92,8 @@ public static class AntigravityCollector
     {
         try
         {
+            var userStatusTask = QueryUserStatusAsync(port, token);
+
             using var req = new HttpRequestMessage(HttpMethod.Post,
                 $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary")
             {
@@ -108,8 +110,13 @@ public static class AntigravityCollector
             if (!response.TryGetProperty("groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
                 return null;
 
+            var (userEmail, userTier) = await userStatusTask;
+            var header = !string.IsNullOrEmpty(userEmail)
+                ? (!string.IsNullOrEmpty(userTier) ? $"{userEmail} · {userTier}" : userEmail)
+                : "Antigravity · live";
+
             LimitInfo? primary = null, weekly = null;
-            var detail = new StringBuilder("Antigravity · live");
+            var detail = new StringBuilder(header);
 
             bool first = true;
             foreach (var group in groups.EnumerateArray())
@@ -142,6 +149,38 @@ public static class AntigravityCollector
         catch
         {
             return null;
+        }
+    }
+
+    private static async Task<(string? Email, string? Tier)> QueryUserStatusAsync(int port, string token)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post,
+                $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus")
+            {
+                Content = new StringContent(RpcBody, Encoding.UTF8, "application/json"),
+            };
+            req.Headers.Add("X-Codeium-Csrf-Token", token);
+            req.Headers.Add("Connect-Protocol-Version", "1");
+
+            using var resp = await Http.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return (null, null);
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            if (!doc.RootElement.TryGetProperty("userStatus", out var us)) return (null, null);
+
+            string? email = us.TryGetProperty("email", out var em) && em.ValueKind == JsonValueKind.String
+                ? em.GetString() : null;
+            string? tier = us.TryGetProperty("userTier", out var ut) && ut.ValueKind == JsonValueKind.Object
+                && ut.TryGetProperty("name", out var tn) && tn.ValueKind == JsonValueKind.String
+                ? tn.GetString() : null;
+
+            return (email, tier);
+        }
+        catch
+        {
+            return (null, null);
         }
     }
 

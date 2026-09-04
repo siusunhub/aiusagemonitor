@@ -11,18 +11,37 @@
         <TextBlock x:Name="StatusText" Margin="0,0,0,10" MinHeight="16" TextWrapping="Wrap"
                    FontSize="12" Foreground="#B8860B"/>
 
-        <StackPanel Orientation="Horizontal">
-            <TextBlock Text="Alias:" VerticalAlignment="Center"/>
-            <TextBox x:Name="AliasBox" Width="130" Margin="6,0,10,0" MaxLength="32"
+        <!-- Account management actions for selected account -->
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Alias:" VerticalAlignment="Center"/>
+            <TextBox x:Name="AliasBox" Grid.Column="1" Width="130" Margin="6,0,8,0" MaxLength="32"
                      PreviewTextInput="OnAliasInput" VerticalContentAlignment="Center"/>
-            <Button x:Name="RenameBtn" Content="Rename" Click="OnRename" Padding="8,3" Margin="0,0,6,0"/>
-            <Button x:Name="AddBtn" Content="＋ Add (login…)" Click="OnAdd" Padding="8,3" Margin="0,0,6,0"/>
-            <Button x:Name="ReloginBtn" Content="↻ Re-login" Click="OnRelogin" Padding="8,3" Margin="0,0,6,0"
-                    ToolTip="Sign in again for the selected account (fixes &quot;sign-in expired&quot;), keeping its alias"/>
-            <Button x:Name="RemoveBtn" Content="－ Remove" Click="OnRemove" Padding="8,3" Margin="0,0,6,0"/>
-            <Button x:Name="BaseBtn" Content="Set as base" Click="OnMakeBase" Padding="8,3" Margin="0,0,6,0"
+            <Button x:Name="RenameBtn" Grid.Column="2" Content="Rename" Click="OnRename" Padding="8,3"/>
+
+            <Button x:Name="BaseBtn" Grid.Column="4" Content="Set as base" Click="OnMakeBase" Padding="8,3" Margin="0,0,6,0"
                     ToolTip="Make the selected account the base account (swaps the stored files)"/>
-            <Button Content="Close" IsCancel="True" Padding="12,3"/>
-        </StackPanel>
+            <Button x:Name="RemoveBtn" Grid.Column="5" Content="－ Remove" Click="OnRemove" Padding="8,3"
+                    ToolTip="Remove selected account"/>
+        </Grid>
+
+        <!-- Login / Add / Close actions -->
+        <DockPanel LastChildFill="False">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button x:Name="AddBtn" Content="＋ Add (login…)" Click="OnAdd" Padding="8,3" Margin="0,0,6,0"/>
+                <Button x:Name="ReloginBtn" Content="↻ Re-login" Click="OnRelogin" Padding="8,3" Margin="0,0,6,0"
+                        ToolTip="Sign in again for the selected account (fixes &quot;sign-in expired&quot;), keeping its alias"/>
+                <Button x:Name="CopyUrlBtn" Content="Copy login URL" Click="OnCopyLoginUrl" Padding="8,3" Margin="0,0,6,0"
+                        ToolTip="Copy Codex authorization URL to clipboard"/>
+            </StackPanel>
+            <Button DockPanel.Dock="Right" Content="Close" IsCancel="True" Padding="12,3"/>
+        </DockPanel>
     </StackPanel>
 </Window>

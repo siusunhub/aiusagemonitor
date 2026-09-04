@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(dotnet build AIUsageMonitor\\\\AIUsageMonitor.csproj -v q -nologo 2>&1)",
+      "PowerShell(dotnet publish AIUsageMonitor\\\\AIUsageMonitor.csproj -c Release -v q -nologo 2>&1)",
+      "PowerShell(dotnet publish AIUsageMonitor\\\\AIUsageMonitor.csproj -c Release -nologo 2>&1 | Select-Object -Last 4; \"exit=$LASTEXITCODE\")",
+      "PowerShell(dotnet publish AIUsageMonitor\\\\AIUsageMonitor.csproj -c Release -nologo 2>&1 | Select-Object -Last 4; \"exit=$LASTEXITCODE\"; Get-ChildItem publish\\\\AIUsageMonitor.exe | Select-Object Name, Length, LastWriteTime)",
+      "PowerShell(dotnet publish AIUsageMonitor\\\\AIUsageMonitor.csproj -c Release -nologo 2>&1 | Select-Object -Last 3; \"exit=$LASTEXITCODE\"; Get-ChildItem publish\\\\AIUsageMonitor.exe | Select-Object Name, Length, LastWriteTime)",
+      "WebSearch",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.kimi.com)",
+      "PowerShell(foreach\\($p in @\\(\"$env:USERPROFILE\\\\.kimi\",\"$env:USERPROFILE\\\\.kimi-code\"\\)\\){ if\\(Test-Path $p\\){ \"===== $p =====\"; Get-ChildItem $p -Recurse -Depth 2 -Force -ErrorAction SilentlyContinue | Select-Object LastWriteTime,Length,FullName | Format-Table -AutoSize | Out-String } else { \"\\(absent\\) $p\" } })",
+      "PowerShell(Get-Content \"$env:APPDATA\\\\AIUsageMonitor\\\\config.json\" -Raw)"
+    ]
+  }
+}

@@ -179,7 +179,7 @@ public static class CodexAccounts
     // ---- add / remove / rename ----------------------------------------------
 
     /// <summary>Runs `codex login` for a NEW account and stores it under the alias. Slow — browser sign-in.</summary>
-    public static async Task AddAccountAsync(string alias)
+    public static async Task AddAccountAsync(string alias, Action<string>? onUrlFound = null, CancellationToken ct = default)
     {
         if (!IsValidAlias(alias))
             throw new InvalidOperationException("Alias must be 1-32 English letters/numbers only.");
@@ -203,7 +203,7 @@ public static class CodexAccounts
 
         try
         {
-            bool ok = await RunCodexLoginAsync();
+            bool ok = await RunCodexLoginAsync(onUrlFound, ct);
             if (!ok || !File.Exists(CodexAuthPath))
                 throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
 
@@ -230,7 +230,7 @@ public static class CodexAccounts
     /// browser sign-in. The account it stores is whatever is signed in, so the
     /// user should log into the same account.
     /// </summary>
-    public static async Task ReloginAccountAsync(CodexAccount account)
+    public static async Task ReloginAccountAsync(CodexAccount account, Action<string>? onUrlFound = null, CancellationToken ct = default)
     {
         Directory.CreateDirectory(StoreDir);
         EnsureMasterBackup();
@@ -253,7 +253,7 @@ public static class CodexAccounts
 
         try
         {
-            bool ok = await RunCodexLoginAsync();
+            bool ok = await RunCodexLoginAsync(onUrlFound, ct);
             if (!ok || !File.Exists(CodexAuthPath))
                 throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
 
@@ -437,7 +437,7 @@ public static class CodexAccounts
             File.Copy(CodexAuthPath, MasterFile);
     }
 
-    private static async Task<bool> RunCodexLoginAsync()
+    private static async Task<bool> RunCodexLoginAsync(Action<string>? onUrlFound = null, CancellationToken ct = default)
     {
         var psi = new ProcessStartInfo
         {
@@ -451,9 +451,32 @@ public static class CodexAccounts
         using var p = Process.Start(psi);
         if (p == null) return false;
 
+        bool urlReported = false;
+        void CheckLine(string? line)
+        {
+            if (string.IsNullOrWhiteSpace(line) || urlReported) return;
+            var match = Regex.Match(line, @"https://[^\s""']+");
+            if (match.Success && (match.Value.Contains("oauth") || match.Value.Contains("authorize") || match.Value.Contains("auth.openai.com")))
+            {
+                urlReported = true;
+                string cleanUrl = match.Value.TrimEnd('.', ',', ';', ')');
+                onUrlFound?.Invoke(cleanUrl);
+            }
+        }
+
+        p.OutputDataReceived += (_, e) => CheckLine(e.Data);
+        p.ErrorDataReceived += (_, e) => CheckLine(e.Data);
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+
+        using var reg = ct.Register(() =>
+        {
+            try { p.Kill(entireProcessTree: true); } catch { }
+        });
+
         // codex login opens the browser and waits for the OAuth callback.
         var exited = await Task.Run(() => p.WaitForExit(300_000));
-        if (!exited)
+        if (!exited || ct.IsCancellationRequested)
         {
             try { p.Kill(entireProcessTree: true); } catch { }
             return false;

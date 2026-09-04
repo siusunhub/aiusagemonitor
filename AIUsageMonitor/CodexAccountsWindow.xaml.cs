@@ -9,6 +9,8 @@ public partial class CodexAccountsWindow : Window
     private List<CodexAccount> _accounts = new();
     private readonly List<string> _baseTexts = new();
     private int _generation;
+    private string? _currentLoginUrl;
+    private CancellationTokenSource? _loginCts;
 
     public CodexAccountsWindow()
     {
@@ -103,16 +105,37 @@ public partial class CodexAccountsWindow : Window
             return;
         }
 
+        _currentLoginUrl = null;
+        _loginCts?.Cancel();
+        _loginCts = new CancellationTokenSource();
+
         SetBusy(true);
-        StatusText.Text = "Waiting for Codex sign-in — complete the login in the browser…";
+        StatusText.Text = "Waiting for Codex sign-in — generating login URL…";
         try
         {
-            await CodexAccounts.AddAccountAsync(alias);
+            await CodexAccounts.AddAccountAsync(alias, onUrlFound: url =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    _currentLoginUrl = url;
+                    CopyUrlBtn.IsEnabled = true;
+                    StatusText.Text = "Waiting for Codex sign-in — click \"Copy login URL\" if browser did not open.";
+                });
+            }, _loginCts.Token);
+
             StatusText.Text = $"Account \"{alias}\" added and is now active.";
             Reload();
         }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = "Login cancelled.";
+        }
         catch (Exception ex) { StatusText.Text = ex.Message; }
-        finally { SetBusy(false); }
+        finally
+        {
+            SetBusy(false);
+            _loginCts = null;
+        }
     }
 
     private async void OnRelogin(object sender, RoutedEventArgs e)
@@ -125,16 +148,37 @@ public partial class CodexAccountsWindow : Window
                 "Codex accounts", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK)
             return;
 
+        _currentLoginUrl = null;
+        _loginCts?.Cancel();
+        _loginCts = new CancellationTokenSource();
+
         SetBusy(true);
-        StatusText.Text = "Waiting for Codex sign-in — complete the login in the browser…";
+        StatusText.Text = "Waiting for Codex sign-in — generating login URL…";
         try
         {
-            await CodexAccounts.ReloginAccountAsync(acc);
+            await CodexAccounts.ReloginAccountAsync(acc, onUrlFound: url =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    _currentLoginUrl = url;
+                    CopyUrlBtn.IsEnabled = true;
+                    StatusText.Text = "Waiting for Codex sign-in — click \"Copy login URL\" if browser did not open.";
+                });
+            }, _loginCts.Token);
+
             StatusText.Text = $"\"{acc.Alias}\" re-logged in and is now active.";
             Reload();
         }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = "Login cancelled.";
+        }
         catch (Exception ex) { StatusText.Text = ex.Message; }
-        finally { SetBusy(false); }
+        finally
+        {
+            SetBusy(false);
+            _loginCts = null;
+        }
     }
 
     private void OnRemove(object sender, RoutedEventArgs e)
@@ -175,10 +219,45 @@ public partial class CodexAccountsWindow : Window
         catch (Exception ex) { StatusText.Text = ex.Message; }
     }
 
+    private async void OnCopyLoginUrl(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentLoginUrl))
+        {
+            StatusText.Text = "Click '＋ Add (login…)' or '↻ Re-login' first to generate a Codex login URL.";
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(_currentLoginUrl);
+            StatusText.Text = "Codex login URL copied to clipboard! Paste it into your browser to complete authentication.";
+            if (sender is System.Windows.Controls.Button btn)
+            {
+                btn.Content = "Copied!";
+                await Task.Delay(1500);
+                if (IsLoaded)
+                {
+                    btn.Content = "Copy login URL";
+                }
+            }
+        }
+        catch
+        {
+            // Clipboard can be locked by another process — ignore and let the user retry.
+        }
+    }
+
     private void SetBusy(bool busy)
     {
         AddBtn.IsEnabled = RenameBtn.IsEnabled = RemoveBtn.IsEnabled = BaseBtn.IsEnabled
             = ReloginBtn.IsEnabled = AliasBox.IsEnabled = !busy;
         Cursor = busy ? Cursors.Wait : null;
+        CopyUrlBtn.IsEnabled = !busy || _currentLoginUrl != null;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        _loginCts?.Cancel();
     }
 }

@@ -251,7 +251,7 @@ public static class ClaudeCollector
                     Name = "CC",
                     StatusText = "login",
                     Detail = "Claude Code — sign-in needed for 5h/weekly bars\n" +
-                             "double-click the bar or right-click → \"Claude login…\"\n" +
+                             "double-click the bar or right-click → \"Claude Login…\"\n" +
                              $"(meanwhile: ~{tokens:N0} non-cached tokens in last 5h)",
                     IsEstimate = true,
                 };

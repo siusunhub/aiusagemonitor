@@ -14,6 +14,27 @@ public partial class LoginWindow : Window
         Loaded += (_, _) => CodeBox.Focus();
     }
 
+    private async void OnCopyUrl(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(_login.Url);
+            if (sender is System.Windows.Controls.Button btn)
+            {
+                btn.Content = "Copied!";
+                await Task.Delay(1500);
+                if (IsLoaded)
+                {
+                    btn.Content = "Copy URL";
+                }
+            }
+        }
+        catch
+        {
+            // Clipboard can be locked by another process — ignore and let the user retry.
+        }
+    }
+
     private void OnReopen(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(_login.Url) { UseShellExecute = true });
 

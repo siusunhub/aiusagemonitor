@@ -20,7 +20,7 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
   - **Auto-Hiding Tray Icon**: When the status bar is visible on the desktop, the tray icon is hidden to keep your system tray clean. When the status bar is hidden via "Hide Bar", the tray icon automatically appears.
   - **Quick Restore**: Double-clicking the tray icon immediately restores the status bar.
 - **Context Menus & Version Display**:
-  - Displays the current application version (e.g. `AI Usage Monitor v0.9`) at the very top of both the status bar and tray right-click menus as a reference header.
+  - Displays the current application version (e.g. `AI Usage Monitor v0.10`) at the very top of both the status bar and tray right-click menus as a reference header.
   - Quick access to refresh metrics, sign into Claude Code, switch Codex accounts, toggle individual tool segments, change display modes, and configure autostart.
 - **Dual Display Modes**:
   - **Dual-Row Mini Bars**: TrafficMonitor-style dual bars for short-term (5-hour) and long-term (weekly) quotas.

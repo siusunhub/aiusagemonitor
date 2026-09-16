@@ -30,6 +30,9 @@ public sealed class Config
     /// <summary>Show the 5-hour reset countdown next to the usage display.</summary>
     public bool ShowResetTime { get; set; } = true;
 
+    /// <summary>Shrink the long usage bars to 40% width. No effect when CompactCircles is on.</summary>
+    public bool ShortUsageBar { get; set; } = false;
+
     /// <summary>Bar turns amber at or above this % used (green below).</summary>
     public double YellowAtPercent { get; set; } = 70;
 

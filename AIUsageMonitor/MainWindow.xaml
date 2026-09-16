@@ -119,7 +119,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,1">
                                 <TextBlock Text="5h" Foreground="#808080" FontSize="9"
                                            Width="15" VerticalAlignment="Center"/>
-                                <Grid Height="4" Width="52" VerticalAlignment="Center">
+                                <Grid Height="4" Width="{Binding BarTrackWidth}" VerticalAlignment="Center">
                                     <Border Background="#40FFFFFF" CornerRadius="2"/>
                                     <Border Background="{Binding Row1Brush}" CornerRadius="2"
                                             HorizontalAlignment="Left" Width="{Binding Row1BarWidth}"/>
@@ -131,7 +131,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,1">
                                 <TextBlock Text="wk" Foreground="#808080" FontSize="9"
                                            Width="15" VerticalAlignment="Center"/>
-                                <Grid Height="4" Width="52" VerticalAlignment="Center">
+                                <Grid Height="4" Width="{Binding BarTrackWidth}" VerticalAlignment="Center">
                                     <Border Background="#40FFFFFF" CornerRadius="2"/>
                                     <Border Background="{Binding Row2Brush}" CornerRadius="2"
                                             HorizontalAlignment="Left" Width="{Binding Row2BarWidth}"/>

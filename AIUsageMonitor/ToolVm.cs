@@ -8,6 +8,7 @@ namespace AIUsageMonitor;
 public sealed class ToolVm : INotifyPropertyChanged
 {
     private const double BarFullWidth = 52;
+    private const double BarShortWidth = BarFullWidth * 0.4;
 
     /// <summary>Color thresholds (% used), set from Config at startup.
     /// Green below YellowAt, amber from YellowAt to RedAt, red above RedAt.</summary>
@@ -20,6 +21,12 @@ public sealed class ToolVm : INotifyPropertyChanged
 
     /// <summary>Compact mode: draw circular gauges instead of long bars.</summary>
     public static bool CompactCircles { get; set; }
+
+    /// <summary>Shrink the long usage bars to 40% width. No effect when CompactCircles is on
+    /// (circles take priority and the bar row isn't shown).</summary>
+    public static bool ShortUsageBar { get; set; }
+
+    private static double CurrentBarFullWidth => ShortUsageBar ? BarShortWidth : BarFullWidth;
 
     /// <summary>Show the 5-hour reset countdown (both display modes).</summary>
     public static bool ShowResetTime { get; set; } = true;
@@ -52,6 +59,9 @@ public sealed class ToolVm : INotifyPropertyChanged
     public string Row2Text { get; private set; } = "";
     public double Row2BarWidth { get; private set; }
     public Brush Row2Brush { get; private set; } = Brushes.Gray;
+
+    /// <summary>Track width for both bar rows (the background pill behind Row1BarWidth/Row2BarWidth).</summary>
+    public double BarTrackWidth => CurrentBarFullWidth;
 
     // circular gauges (compact mode)
     public Geometry Ring1Geometry { get; private set; } = Geometry.Empty;
@@ -154,7 +164,7 @@ public sealed class ToolVm : INotifyPropertyChanged
         if (limit?.Percent is not { } p)
             return ("–", 0, Brushes.DimGray);
         double shown = ShowRemaining ? 100 - p : p;
-        return ($"{tilde}{shown:0}%", Math.Clamp(shown, 0, 100) / 100.0 * BarFullWidth, BrushFor(p));
+        return ($"{tilde}{shown:0}%", Math.Clamp(shown, 0, 100) / 100.0 * CurrentBarFullWidth, BrushFor(p));
     }
 
     private static (Geometry, Brush, string) RingFor(LimitInfo? limit, string tilde)

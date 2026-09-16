@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         ToolVm.ShowRemaining = _config.ShowRemaining;
         ToolVm.CompactCircles = _config.CompactCircles;
         ToolVm.ShowResetTime = _config.ShowResetTime;
+        ToolVm.ShortUsageBar = _config.ShortUsageBar;
         ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity };
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
@@ -376,6 +377,22 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
         };
         menu.Items.Add(showReset);
+
+        var shortBar = new MenuItem
+        {
+            Header = "Show Short Usage Bar",
+            IsCheckable = true,
+            IsChecked = _config.ShortUsageBar,
+        };
+        shortBar.Click += (_, _) =>
+        {
+            _config.ShortUsageBar = shortBar.IsChecked;
+            _config.Save();
+            ToolVm.ShortUsageBar = _config.ShortUsageBar;
+            RerenderAll();
+            Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
+        };
+        menu.Items.Add(shortBar);
 
         menu.Items.Add(new Separator());
 

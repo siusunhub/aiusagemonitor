@@ -15,17 +15,36 @@ public static class CodexCollector
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
 
+    public static bool NeedsLogin { get; private set; }
+
     public static async Task<ToolUsage> CollectAsync()
     {
         try
         {
             var live = await TryApiAsync();
-            if (live != null) return live;
+            if (live != null)
+            {
+                NeedsLogin = false;
+                return live;
+            }
         }
         catch
         {
-            // fall through to local session files
+            // Network failure or unexpected error — fall through to local session files
         }
+
+        if (NeedsLogin)
+        {
+            return new ToolUsage
+            {
+                Name = "CX",
+                StatusText = "login",
+                Detail = "Codex: sign-in required or session expired\n" +
+                         "Double-click the bar or right-click → Accounts Setup to sign in",
+                IsEstimate = false,
+            };
+        }
+
         return CollectFromSessions();
     }
 
@@ -36,51 +55,119 @@ public static class CodexCollector
         var authPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".codex", "auth.json");
-        if (!File.Exists(authPath)) return null;
+        if (!File.Exists(authPath))
+        {
+            NeedsLogin = true;
+            return null;
+        }
 
-        string? accessToken, accountId;
+        string? accessToken, refreshToken, accountId;
         using (var doc = JsonDocument.Parse(File.ReadAllText(authPath)))
         {
-            if (!doc.RootElement.TryGetProperty("tokens", out var tokens)) return null;
+            if (!doc.RootElement.TryGetProperty("tokens", out var tokens))
+            {
+                NeedsLogin = true;
+                return null;
+            }
             accessToken = tokens.TryGetProperty("access_token", out var at) ? at.GetString() : null;
+            refreshToken = tokens.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null;
             accountId = tokens.TryGetProperty("account_id", out var ai) ? ai.GetString() : null;
         }
-        if (string.IsNullOrEmpty(accessToken)) return null;
-
-        using var req = new HttpRequestMessage(HttpMethod.Get, "https://chatgpt.com/backend-api/wham/usage");
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        if (!string.IsNullOrEmpty(accountId)) req.Headers.Add("chatgpt-account-id", accountId);
-        req.Headers.UserAgent.ParseAdd("codex-cli");
-
-        using var resp = await Http.SendAsync(req);
-        if (!resp.IsSuccessStatusCode) return null;
-
-        using var body = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-        var root = body.RootElement;
-        if (!root.TryGetProperty("rate_limit", out var rl)) return null;
-
-        var (primary, weekly) = AssignWindows(
-            ParseApiWindow(rl, "primary_window"),
-            ParseApiWindow(rl, "secondary_window"));
-        if (primary == null && weekly == null) return null;
-
-        string plan = root.TryGetProperty("plan_type", out var p) && p.ValueKind == JsonValueKind.String
-            ? p.GetString() ?? "" : "";
-        string note = primary == null && weekly != null
-            ? "\n(5h limit currently off — Codex counts weekly only)" : "";
-
-        var (email, _) = CodexAccounts.InfoOf(authPath);
-        string header = !string.IsNullOrEmpty(email)
-            ? (!string.IsNullOrEmpty(plan) ? $"{email} · {plan}" : email)
-            : (!string.IsNullOrEmpty(plan) ? $"Codex ({plan}) · live" : "Codex · live");
-
-        return new ToolUsage
+        if (string.IsNullOrEmpty(accessToken))
         {
-            Name = "CX",
-            Primary = primary,
-            Weekly = weekly,
-            Detail = $"{header}{note}",
-        };
+            NeedsLogin = true;
+            return null;
+        }
+
+        async Task<(HttpResponseMessage Resp, string Body)> QueryEndpoint(string token)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, "https://chatgpt.com/backend-api/wham/usage");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (!string.IsNullOrEmpty(accountId)) req.Headers.Add("chatgpt-account-id", accountId);
+            req.Headers.UserAgent.ParseAdd("codex-cli");
+
+            var resp = await Http.SendAsync(req);
+            var body = await resp.Content.ReadAsStringAsync();
+            return (resp, body);
+        }
+
+        HttpResponseMessage resp;
+        string bodyText;
+        try
+        {
+            (resp, bodyText) = await QueryEndpoint(accessToken);
+
+            // If token expired / unauthorized (401 or 403), attempt token refresh once
+            if (resp.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                if (!string.IsNullOrEmpty(refreshToken))
+                {
+                    var newAccess = await CodexAccounts.RefreshTokensAsync(authPath, refreshToken);
+                    if (!string.IsNullOrEmpty(newAccess))
+                    {
+                        resp.Dispose();
+                        (resp, bodyText) = await QueryEndpoint(newAccess);
+                    }
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Network issue, unreachable endpoint
+            NeedsLogin = false;
+            throw;
+        }
+        catch (TaskCanceledException)
+        {
+            // Network timeout
+            NeedsLogin = false;
+            throw;
+        }
+
+        using (resp)
+        {
+            if (!resp.IsSuccessStatusCode)
+            {
+                if (resp.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+                {
+                    // Refresh token invalid or revoked -> session terminated
+                    NeedsLogin = true;
+                    return null;
+                }
+
+                // Other status codes (e.g. 500/503 or 429) -> endpoint temporary issue
+                NeedsLogin = false;
+                return null;
+            }
+
+            NeedsLogin = false;
+            using var body = JsonDocument.Parse(bodyText);
+            var root = body.RootElement;
+            if (!root.TryGetProperty("rate_limit", out var rl)) return null;
+
+            var (primary, weekly) = AssignWindows(
+                ParseApiWindow(rl, "primary_window"),
+                ParseApiWindow(rl, "secondary_window"));
+            if (primary == null && weekly == null) return null;
+
+            string plan = root.TryGetProperty("plan_type", out var p) && p.ValueKind == JsonValueKind.String
+                ? p.GetString() ?? "" : "";
+            string note = primary == null && weekly != null
+                ? "\n(5h limit currently off — Codex counts weekly only)" : "";
+
+            var (email, _) = CodexAccounts.InfoOf(authPath);
+            string header = !string.IsNullOrEmpty(email)
+                ? (!string.IsNullOrEmpty(plan) ? $"{email} · {plan}" : email)
+                : (!string.IsNullOrEmpty(plan) ? $"Codex ({plan}) · live" : "Codex · live");
+
+            return new ToolUsage
+            {
+                Name = "CX",
+                Primary = primary,
+                Weekly = weekly,
+                Detail = $"{header}{note}",
+            };
+        }
     }
 
     private static (LimitInfo? Info, double? Seconds) ParseApiWindow(JsonElement rateLimit, string key)

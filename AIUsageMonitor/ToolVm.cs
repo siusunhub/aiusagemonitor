@@ -37,6 +37,15 @@ public sealed class ToolVm : INotifyPropertyChanged
     private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4C, 0xC3, 0x8A));
     private static readonly Brush Yellow = new SolidColorBrush(Color.FromRgb(0xF5, 0xC8, 0x42));
     private static readonly Brush Red = new SolidColorBrush(Color.FromRgb(0xF2, 0x55, 0x5A));
+    private static readonly Brush OfflineBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8E, 0x99));
+
+    static ToolVm()
+    {
+        Green.Freeze();
+        Yellow.Freeze();
+        Red.Freeze();
+        OfflineBrush.Freeze();
+    }
 
     private bool _show = true;
     private bool _hasRows;
@@ -75,6 +84,8 @@ public sealed class ToolVm : INotifyPropertyChanged
     public string FallbackText { get; private set; } = "…";
 
     public string Tooltip { get; private set; } = "loading…";
+
+    public bool IsEstimate { get; private set; }
 
     public Visibility Visibility => _show ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RowsVisibility => _hasRows && !CompactCircles ? Visibility.Visible : Visibility.Collapsed;
@@ -118,15 +129,16 @@ public sealed class ToolVm : INotifyPropertyChanged
     public void Update(ToolUsage u)
     {
         _last = u;
+        IsEstimate = u.IsEstimate;
         var tilde = u.IsEstimate ? "~" : "";
         _hasRows = u.Primary?.Percent != null || u.Weekly?.Percent != null;
 
         if (_hasRows)
         {
-            (Row1Text, Row1BarWidth, Row1Brush) = RowFor(u.Primary, tilde);
-            (Row2Text, Row2BarWidth, Row2Brush) = RowFor(u.Weekly, tilde);
-            (Ring1Geometry, Ring1Brush, Ring1CenterText) = RingFor(u.Primary, tilde);
-            (Ring2Geometry, Ring2Brush, Ring2CenterText) = RingFor(u.Weekly, tilde);
+            (Row1Text, Row1BarWidth, Row1Brush) = RowFor(u.Primary, tilde, u.IsEstimate);
+            (Row2Text, Row2BarWidth, Row2Brush) = RowFor(u.Weekly, tilde, u.IsEstimate);
+            (Ring1Geometry, Ring1Brush, Ring1CenterText) = RingFor(u.Primary, tilde, u.IsEstimate);
+            (Ring2Geometry, Ring2Brush, Ring2CenterText) = RingFor(u.Weekly, tilde, u.IsEstimate);
             // When the weekly limit is exhausted it is the binding one — show its
             // reset instead of the 5h countdown. Also fall back to weekly when
             // no short window exists (e.g. Codex weekly-only mode).
@@ -159,20 +171,22 @@ public sealed class ToolVm : INotifyPropertyChanged
         Raise();
     }
 
-    private static (string, double, Brush) RowFor(LimitInfo? limit, string tilde)
+    private static (string, double, Brush) RowFor(LimitInfo? limit, string tilde, bool isEstimate = false)
     {
         if (limit?.Percent is not { } p)
             return ("–", 0, Brushes.DimGray);
         double shown = ShowRemaining ? 100 - p : p;
-        return ($"{tilde}{shown:0}%", Math.Clamp(shown, 0, 100) / 100.0 * CurrentBarFullWidth, BrushFor(p));
+        var brush = isEstimate ? OfflineBrush : BrushFor(p);
+        return ($"{tilde}{shown:0}%", Math.Clamp(shown, 0, 100) / 100.0 * CurrentBarFullWidth, brush);
     }
 
-    private static (Geometry, Brush, string) RingFor(LimitInfo? limit, string tilde)
+    private static (Geometry, Brush, string) RingFor(LimitInfo? limit, string tilde, bool isEstimate = false)
     {
         if (limit?.Percent is not { } p)
             return (Geometry.Empty, Brushes.DimGray, "–");
         double shown = ShowRemaining ? 100 - p : p;
-        return (BuildArc(shown), BrushFor(p), $"{tilde}{shown:0}");
+        var brush = isEstimate ? OfflineBrush : BrushFor(p);
+        return (BuildArc(shown), brush, $"{tilde}{shown:0}");
     }
 
     /// <summary>Progress arc from 12 o'clock, clockwise, filling <paramref name="percent"/> of the ring.</summary>

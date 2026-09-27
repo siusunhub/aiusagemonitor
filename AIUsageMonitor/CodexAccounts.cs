@@ -396,7 +396,7 @@ public static class CodexAccounts
     }
 
     /// <summary>Refresh an account's tokens and persist them back into its file. Returns the new access token.</summary>
-    private static async Task<string?> RefreshTokensAsync(string path, string refreshToken)
+    internal static async Task<string?> RefreshTokensAsync(string path, string refreshToken)
     {
         var payload = JsonSerializer.Serialize(new
         {

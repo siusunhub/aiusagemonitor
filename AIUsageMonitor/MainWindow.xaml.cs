@@ -260,12 +260,21 @@ public partial class MainWindow : Window
 
     private void OnDragStart(object sender, MouseButtonEventArgs e)
     {
-        // Double-click opens the Claude login dialog when sign-in is needed.
-        if (e.ClickCount == 2 && ClaudeCollector.NeedsLogin)
+        // Double-click opens the Claude or Codex login dialog when sign-in is needed.
+        if (e.ClickCount == 2)
         {
-            var dlg = new LoginWindow();
-            if (dlg.ShowDialog() == true) _ = RefreshAsync(force: true);
-            return;
+            if (ClaudeCollector.NeedsLogin)
+            {
+                var dlg = new LoginWindow();
+                if (dlg.ShowDialog() == true) _ = RefreshAsync(force: true);
+                return;
+            }
+            if (CodexCollector.NeedsLogin)
+            {
+                new CodexAccountsWindow().ShowDialog();
+                _ = RefreshAsync(force: true);
+                return;
+            }
         }
 
         _dragging = true;

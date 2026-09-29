@@ -1,5 +1,10 @@
 # AI Usage Monitor
 
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-blue.svg)](https://microsoft.com/windows)
+[![Target Framework](https://img.shields.io/badge/.NET-10.0%20WPF-purple.svg)](https://dotnet.microsoft.com/)
+[![Version](https://img.shields.io/badge/Version-0.11-green.svg)](https://github.com/siusunhub/aiusagemonitor)
+[![License](https://img.shields.io/badge/License-MIT-orange.svg)](LICENSE)
+
 A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity CLI (AG)**.
 
 <p align="center">
@@ -20,19 +25,26 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
   - **Auto-Hiding Tray Icon**: When the status bar is visible on the desktop, the tray icon is hidden to keep your system tray clean. When the status bar is hidden via "Hide Bar", the tray icon automatically appears.
   - **Quick Restore**: Double-clicking the tray icon immediately restores the status bar.
 - **Context Menus & Version Display**:
-  - Displays the current application version (e.g. `AI Usage Monitor v0.10`) at the very top of both the status bar and tray right-click menus as a reference header.
+  - Displays the current application version (e.g. `AI Usage Monitor v0.11`) at the very top of both the status bar and tray right-click menus as a reference header.
   - Quick access to refresh metrics, sign into Claude Code, switch Codex accounts, toggle individual tool segments, change display modes, and configure autostart.
-- **Dual Display Modes**:
+- **Display Modes & Customization**:
   - **Dual-Row Mini Bars**: TrafficMonitor-style dual bars for short-term (5-hour) and long-term (weekly) quotas.
+  - **Short Usage Bar Mode**: Shrink mini usage bar tracks to 40% width via right-click menu, optimizing space on crowded taskbars.
   - **Compact Circles**: Minimalist circular progress rings showing quota status with center percentage readouts.
 - **Quota Modes & Countdown Timers**:
   - **Remaining Quota Mode**: Toggle display between **% used** and **% remaining** (quota left).
   - **Show Reset Time**: Displays a real-time countdown to the next quota reset.
   - **Intelligent Polling Optimization**: Automatically pauses background API polling when 100% quota is reached until right before the reset time, saving unnecessary network requests.
-- **Configurable Color Coding**:
+- **Streamlined Authentication**:
+  - **Double-Click Quick Sign-In**: Double-clicking the widget immediately launches the Claude Login dialog or Codex Accounts window whenever credentials need attention.
+  - **Copy Login URL**: One-click button in Claude and Codex login dialogs to copy authorization URLs to clipboard for easy sign-in across browsers.
+- **Rich Hover Tooltips**:
+  - Hovering any tool segment reveals detailed hover cards with exact reset timestamps, active plans/accounts, and detailed window statuses.
+- **Visual Status & Color Coding**:
   - 🟢 **Green**: `< 70%` utilization (default)
   - 🟡 **Amber**: `70% – 90%` utilization (default)
   - 🔴 **Red**: `> 90%` utilization (default)
+  - 🔘 **Muted Gray**: Offline or estimated telemetry (`~`) is visually distinguished from live validated API metrics.
 
 ---
 

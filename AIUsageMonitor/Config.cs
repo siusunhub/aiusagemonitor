@@ -30,6 +30,9 @@ public sealed class Config
     /// <summary>Show the 5-hour reset countdown next to the usage display.</summary>
     public bool ShowResetTime { get; set; } = true;
 
+    /// <summary>Show the weekly reset date or countdown beneath the 5-hour countdown.</summary>
+    public bool ShowWeeklyWindow { get; set; } = false;
+
     /// <summary>Shrink the long usage bars to 40% width. No effect when CompactCircles is on.</summary>
     public bool ShortUsageBar { get; set; } = false;
 

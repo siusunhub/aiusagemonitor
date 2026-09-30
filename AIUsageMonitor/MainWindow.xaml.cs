@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         ToolVm.ShowRemaining = _config.ShowRemaining;
         ToolVm.CompactCircles = _config.CompactCircles;
         ToolVm.ShowResetTime = _config.ShowResetTime;
+        ToolVm.ShowWeeklyWindow = _config.ShowWeeklyWindow;
         ToolVm.ShortUsageBar = _config.ShortUsageBar;
         ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity };
         _claude.SetVisible(_config.ShowClaude);
@@ -373,7 +374,7 @@ public partial class MainWindow : Window
 
         var showReset = new MenuItem
         {
-            Header = "Show Reset Time",
+            Header = "Show 5 Hour Window Time",
             IsCheckable = true,
             IsChecked = _config.ShowResetTime,
         };
@@ -386,6 +387,22 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
         };
         menu.Items.Add(showReset);
+
+        var showWeekly = new MenuItem
+        {
+            Header = "Show Weekly Window Time",
+            IsCheckable = true,
+            IsChecked = _config.ShowWeeklyWindow,
+        };
+        showWeekly.Click += (_, _) =>
+        {
+            _config.ShowWeeklyWindow = showWeekly.IsChecked;
+            _config.Save();
+            ToolVm.ShowWeeklyWindow = _config.ShowWeeklyWindow;
+            RerenderAll();
+            Dispatcher.BeginInvoke(Reposition, DispatcherPriority.Loaded);
+        };
+        menu.Items.Add(showWeekly);
 
         var shortBar = new MenuItem
         {

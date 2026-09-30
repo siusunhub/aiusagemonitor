@@ -135,7 +135,7 @@ public static class TaskbarInterop
         for (int i = 0; i < screens.Length; i++)
         {
             if (screens[i].Bounds.Contains(cx, cy))
-                return $"Monitor {i + 1}" + (screens[i].Primary ? " (primary)" : "");
+                return $"Monitor {i + 1}" + (screens[i].Primary ? " (Primary)" : "");
         }
         return "Monitor ?";
     }

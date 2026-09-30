@@ -31,6 +31,8 @@ public sealed class ToolVm : INotifyPropertyChanged
     /// <summary>Show the 5-hour reset countdown (both display modes).</summary>
     public static bool ShowResetTime { get; set; } = true;
 
+    public static bool ShowWeeklyWindow { get; set; }
+
     private const double RingSize = 24;
     private const double RingThickness = 4;
 
@@ -68,6 +70,7 @@ public sealed class ToolVm : INotifyPropertyChanged
     public string Row2Text { get; private set; } = "";
     public double Row2BarWidth { get; private set; }
     public Brush Row2Brush { get; private set; } = Brushes.Gray;
+    public string Row2ResetText { get; private set; } = "";
 
     /// <summary>Track width for both bar rows (the background pill behind Row1BarWidth/Row2BarWidth).</summary>
     public double BarTrackWidth => CurrentBarFullWidth;
@@ -93,6 +96,7 @@ public sealed class ToolVm : INotifyPropertyChanged
     public Visibility FallbackVisibility => _hasRows ? Visibility.Collapsed : Visibility.Visible;
     public Visibility SeparatorVisibility => _showSeparator ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ResetVisibility => _hasRows && ShowResetTime ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility WeeklyResetVisibility => _hasRows && ShowWeeklyWindow ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DetailVisibility => string.IsNullOrWhiteSpace(DetailText) ? Visibility.Collapsed : Visibility.Visible;
     public Visibility Row1Visibility => (!string.IsNullOrEmpty(Row1Text) && Row1Text != "–") || _hasRows ? Visibility.Visible : Visibility.Collapsed;
     public Visibility Row2Visibility => (!string.IsNullOrEmpty(Row2Text) && Row2Text != "–") || _hasRows ? Visibility.Visible : Visibility.Collapsed;
@@ -139,18 +143,14 @@ public sealed class ToolVm : INotifyPropertyChanged
             (Row2Text, Row2BarWidth, Row2Brush) = RowFor(u.Weekly, tilde, u.IsEstimate);
             (Ring1Geometry, Ring1Brush, Ring1CenterText) = RingFor(u.Primary, tilde, u.IsEstimate);
             (Ring2Geometry, Ring2Brush, Ring2CenterText) = RingFor(u.Weekly, tilde, u.IsEstimate);
-            // When the weekly limit is exhausted it is the binding one — show its
-            // reset instead of the 5h countdown. Also fall back to weekly when
-            // no short window exists (e.g. Codex weekly-only mode).
-            bool weeklyExhausted = u.Weekly?.Percent is { } wp && wp >= 100;
-            Row1ResetText = CountdownFor(weeklyExhausted
-                ? u.Weekly?.ResetsAt ?? u.Primary?.ResetsAt
-                : u.Primary?.ResetsAt ?? u.Weekly?.ResetsAt);
+            Row1ResetText = CountdownFor(u.Primary?.ResetsAt);
+            Row2ResetText = WeeklyResetFor(u.Weekly?.ResetsAt);
         }
         else
         {
             FallbackText = tilde + (u.StatusText ?? "–");
             Row1ResetText = "";
+            Row2ResetText = "";
         }
 
         DetailText = u.Detail ?? "";
@@ -228,6 +228,20 @@ public sealed class ToolVm : INotifyPropertyChanged
             : left.TotalHours >= 1
                 ? $"{(int)left.TotalHours}h{left.Minutes:00}m"
                 : $"{Math.Max(1, left.Minutes)}m";
+    }
+
+    private static string WeeklyResetFor(DateTimeOffset? resetsAt)
+    {
+        if (resetsAt is not { } reset) return "";
+        var now = DateTimeOffset.Now;
+        var left = reset - now;
+        if (left <= TimeSpan.Zero) return "";
+        if (reset.ToLocalTime().Date != now.Date)
+            return reset.ToLocalTime().ToString("d-MMM", System.Globalization.CultureInfo.InvariantCulture);
+
+        return left.TotalHours >= 1
+            ? $"{(int)left.TotalHours}h{left.Minutes}m"
+            : $"{Math.Max(1, left.Minutes)}m";
     }
 
     private void Raise() =>

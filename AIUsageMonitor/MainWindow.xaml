@@ -171,10 +171,15 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- 5h reset countdown, centered like the tool name (both modes) -->
-                        <TextBlock Text="{Binding Row1ResetText}" Foreground="#909090"
-                                   FontSize="11" FontWeight="SemiBold" Margin="4,0,0,0"
-                                   VerticalAlignment="Center" Visibility="{Binding ResetVisibility}"/>
+                        <!-- Reset windows (both modes): weekly beneath 5h. -->
+                        <StackPanel VerticalAlignment="Center" Margin="4,0,0,0">
+                            <TextBlock Text="{Binding Row1ResetText}" Foreground="#909090"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Visibility="{Binding ResetVisibility}"/>
+                            <TextBlock Text="{Binding Row2ResetText}" Foreground="#909090"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Visibility="{Binding WeeklyResetVisibility}"/>
+                        </StackPanel>
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

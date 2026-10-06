@@ -56,6 +56,10 @@ public sealed class ToolVm : INotifyPropertyChanged
 
     public string Name { get; }
     public string FullName { get; }
+
+    /// <summary>Taskbar label; a multi-word name (e.g. "AG IDE") wraps onto two lines.</summary>
+    public string LabelText => Name.Replace(' ', '\n');
+
     public string DetailText { get; private set; } = "";
     public string Row1ResetFull { get; private set; } = "";
     public string Row2ResetFull { get; private set; } = "";

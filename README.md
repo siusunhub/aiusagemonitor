@@ -5,7 +5,7 @@
 [![Version](https://img.shields.io/badge/Version-0.11-green.svg)](https://github.com/siusunhub/aiusagemonitor)
 [![License](https://img.shields.io/badge/License-MIT-orange.svg)](LICENSE)
 
-A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity CLI (AG)**.
+A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity IDE (AG IDE)**.
 
 <p align="center">
   <img src="assets/aiusagemonitorsample.png" alt="AI Usage Monitor Screenshot"><br>
@@ -54,7 +54,7 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
 | :--- | :--- | :--- |
 | **Claude Code (CC)** | Live OAuth utilization endpoint (`/api/oauth/usage`). Fully supports widget-based OAuth sign-in and token auto-refresh. | Scans local transcript JSONL files in `~/.claude/projects/` to calculate input/output token usage over the last 5 hours. |
 | **Codex (CX)** | Live backend API (`/backend-api/wham/usage`) using the OAuth token stored by Codex in `~/.codex/auth.json`. | Parses rate limit payloads from the tail of the newest local rollout session files in `~/.codex/sessions/`. |
-| **Antigravity (AG)** | Querying the local `language_server_windows_x64.exe` instance. CSRF token and port are automatically discovered via WMI and TCP state. | Counts active conversation database files (`*.db`) modified today in `~/.gemini/antigravity-cli/conversations/`. |
+| **Antigravity IDE (AG IDE)** | Querying the local `language_server_windows_x64.exe` instance. CSRF token and port are automatically discovered via WMI and TCP state. | Counts active conversation database files (`*.db`) modified today in `~/.gemini/antigravity-cli/conversations/`. |
 
 ---
 

@@ -12,7 +12,7 @@ public partial class MainWindow : Window
     private readonly Config _config = Config.Load();
     private readonly ToolVm _claude = new("CC", "Claude Code");
     private readonly ToolVm _codex = new("CX", "OpenAI Codex");
-    private readonly ToolVm _antigravity = new("AG", "Antigravity");
+    private readonly ToolVm _antigravity = new("AG IDE", "Antigravity IDE");
 
     private IntPtr _hwnd;
     private bool _dragging;
@@ -337,7 +337,7 @@ public partial class MainWindow : Window
             v => { _config.ShowClaude = v; _claude.SetVisible(v); });
         AddShowToggle(menu, "Show Codex", _config.ShowCodex,
             v => { _config.ShowCodex = v; _codex.SetVisible(v); });
-        AddShowToggle(menu, "Show Antigravity", _config.ShowAntigravity,
+        AddShowToggle(menu, "Show Antigravity IDE", _config.ShowAntigravity,
             v => { _config.ShowAntigravity = v; _antigravity.SetVisible(v); });
 
         var showRemaining = new MenuItem

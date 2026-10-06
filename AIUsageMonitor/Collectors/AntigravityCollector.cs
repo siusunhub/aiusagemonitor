@@ -8,11 +8,11 @@ using System.Text.RegularExpressions;
 namespace AIUsageMonitor.Collectors;
 
 /// <summary>
-/// Antigravity usage via the local Antigravity language server. The server's
+/// Antigravity IDE usage via the local Antigravity language server. The server's
 /// RetrieveUserQuotaSummary RPC returns per-model-group 5-hour and weekly
 /// limits (the same data the IDE shows). Access requires the CSRF token from
 /// the language_server process command line and one of its listening ports.
-/// Fallback when Antigravity isn't running: conversation activity.
+/// Fallback when Antigravity IDE isn't running: conversation activity.
 /// </summary>
 public static class AntigravityCollector
 {
@@ -113,7 +113,7 @@ public static class AntigravityCollector
             var (userEmail, userTier) = await userStatusTask;
             var header = !string.IsNullOrEmpty(userEmail)
                 ? (!string.IsNullOrEmpty(userTier) ? $"{userEmail} · {userTier}" : userEmail)
-                : "Antigravity · live";
+                : "Antigravity IDE · live";
 
             LimitInfo? primary = null, weekly = null;
             var detail = new StringBuilder(header);
@@ -140,7 +140,7 @@ public static class AntigravityCollector
 
             return new ToolUsage
             {
-                Name = "AG",
+                Name = "AG IDE",
                 Primary = primary,
                 Weekly = weekly,
                 Detail = detail.ToString(),
@@ -216,7 +216,7 @@ public static class AntigravityCollector
             // not running, say so plainly rather than showing a confusing count.
             bool running = FindLanguageServers().Count > 0;
 
-            var detail = "Antigravity is not running — start it to see 5h/weekly quota";
+            var detail = "Antigravity IDE is not running — start it to see 5h/weekly quota";
             var convDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".gemini", "antigravity-cli", "conversations");
@@ -232,16 +232,16 @@ public static class AntigravityCollector
 
             return new ToolUsage
             {
-                Name = "AG",
+                Name = "AG IDE",
                 // "running but query failed" is rare; either way there's no live quota.
                 StatusText = running ? "n/a" : "off",
-                Detail = running ? "Antigravity quota query failed — will retry" : detail,
+                Detail = running ? "Antigravity IDE quota query failed — will retry" : detail,
                 IsEstimate = false,
             };
         }
         catch (Exception ex)
         {
-            return new ToolUsage { Name = "AG", StatusText = "err", Detail = "Antigravity: " + ex.Message };
+            return new ToolUsage { Name = "AG IDE", StatusText = "err", Detail = "Antigravity IDE: " + ex.Message };
         }
     }
 }

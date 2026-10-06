@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly ToolVm _claude = new("CC", "Claude Code");
     private readonly ToolVm _codex = new("CX", "OpenAI Codex");
     private readonly ToolVm _antigravity = new("AG IDE", "Antigravity IDE");
+    private readonly ToolVm _antigravityCli = new("AG CLI", "Antigravity CLI");
 
     private IntPtr _hwnd;
     private bool _dragging;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private ToolUsage? _lastClaude;
     private ToolUsage? _lastCodex;
     private ToolUsage? _lastAntigravity;
+    private ToolUsage? _lastAntigravityCli;
 
     public MainWindow()
     {
@@ -37,10 +39,11 @@ public partial class MainWindow : Window
         ToolVm.ShowResetTime = _config.ShowResetTime;
         ToolVm.ShowWeeklyWindow = _config.ShowWeeklyWindow;
         ToolVm.ShortUsageBar = _config.ShortUsageBar;
-        ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity };
+        ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity, _antigravityCli };
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
         _antigravity.SetVisible(_config.ShowAntigravity);
+        _antigravityCli.SetVisible(_config.ShowAntigravityCli);
         UpdateSeparators();
         BuildContextMenu();
 
@@ -83,6 +86,7 @@ public partial class MainWindow : Window
             _claude.Tick();
             _codex.Tick();
             _antigravity.Tick();
+            _antigravityCli.Tick();
         };
         countdownTimer.Start();
 
@@ -117,15 +121,21 @@ public partial class MainWindow : Window
                 ? AntigravityCollector.CollectAsync()
                 : Task.FromResult(_lastAntigravity);
 
-            await Task.WhenAll(claudeTask, codexTask, antigravityTask);
+            var antigravityCliTask = (force || _lastAntigravityCli == null || !_lastAntigravityCli.ShouldPauseCheck())
+                ? AntigravityCliCollector.CollectAsync()
+                : Task.FromResult(_lastAntigravityCli);
+
+            await Task.WhenAll(claudeTask, codexTask, antigravityTask, antigravityCliTask);
 
             _lastClaude = claudeTask.Result;
             _lastCodex = codexTask.Result;
             _lastAntigravity = antigravityTask.Result;
+            _lastAntigravityCli = antigravityCliTask.Result;
 
             _claude.Update(_lastClaude);
             _codex.Update(_lastCodex);
             _antigravity.Update(_lastAntigravity);
+            _antigravityCli.Update(_lastAntigravityCli);
         }
         finally
         {
@@ -339,6 +349,8 @@ public partial class MainWindow : Window
             v => { _config.ShowCodex = v; _codex.SetVisible(v); });
         AddShowToggle(menu, "Show Antigravity IDE", _config.ShowAntigravity,
             v => { _config.ShowAntigravity = v; _antigravity.SetVisible(v); });
+        AddShowToggle(menu, "Show Antigravity CLI", _config.ShowAntigravityCli,
+            v => { _config.ShowAntigravityCli = v; _antigravityCli.SetVisible(v); });
 
         var showRemaining = new MenuItem
         {
@@ -470,6 +482,7 @@ public partial class MainWindow : Window
         _claude.Tick();
         _codex.Tick();
         _antigravity.Tick();
+        _antigravityCli.Tick();
     }
 
     /// <summary>Rebuild the "Show on monitor" submenu with the current taskbar list.</summary>
@@ -549,7 +562,7 @@ public partial class MainWindow : Window
     private void UpdateSeparators()
     {
         bool anyBefore = false;
-        foreach (var vm in new[] { _claude, _codex, _antigravity })
+        foreach (var vm in new[] { _claude, _codex, _antigravity, _antigravityCli })
         {
             vm.SetSeparator(anyBefore && vm.IsShown);
             if (vm.IsShown) anyBefore = true;

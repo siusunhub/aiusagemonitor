@@ -184,7 +184,7 @@ public static class AntigravityCollector
         }
     }
 
-    private static LimitInfo? ParseBucket(JsonElement group, string window)
+    internal static LimitInfo? ParseBucket(JsonElement group, string window)
     {
         if (!group.TryGetProperty("buckets", out var buckets) || buckets.ValueKind != JsonValueKind.Array)
             return null;
@@ -204,7 +204,7 @@ public static class AntigravityCollector
         return null;
     }
 
-    private static string Fmt(LimitInfo? l) => l?.Percent is { } p ? $"{p:0.#}%" : "?";
+    internal static string Fmt(LimitInfo? l) => l?.Percent is { } p ? $"{p:0.#}%" : "?";
 
     // ---- fallback: conversation activity ------------------------------------
 

@@ -240,7 +240,7 @@ public sealed class ToolVm : INotifyPropertyChanged
         var now = DateTimeOffset.Now;
         var left = reset - now;
         if (left <= TimeSpan.Zero) return "";
-        if (reset.ToLocalTime().Date != now.Date)
+        if (left.TotalHours >= 24)
             return reset.ToLocalTime().ToString("d-MMM", System.Globalization.CultureInfo.InvariantCulture);
 
         return left.TotalHours >= 1

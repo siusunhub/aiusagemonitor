@@ -100,10 +100,127 @@ public static class AntigravityCliCollector
 
     // ---- cloud quota endpoint ----------------------------------------------
 
+    private const string CodeAssistEndpoint = "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+    private static readonly string[] UserInfoEndpoints =
+    {
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+    };
+
+    private static string? _cachedProfileToken;
+    private static string? _cachedEmail;
+    private static string? _cachedTier;
+
+    private static async Task<(string? Email, string? Tier)> GetUserProfileAsync(string accessToken)
+    {
+        if (_cachedProfileToken == accessToken && !string.IsNullOrEmpty(_cachedEmail))
+            return (_cachedEmail, _cachedTier);
+
+        try
+        {
+            var emailTask = FetchAccountEmailAsync(accessToken);
+            var tierTask = FetchUserTierAsync(accessToken);
+
+            await Task.WhenAll(emailTask, tierTask);
+            var email = await emailTask;
+            var tier = await tierTask;
+
+            if (!string.IsNullOrEmpty(email))
+            {
+                _cachedProfileToken = accessToken;
+                _cachedEmail = email;
+                _cachedTier = tier;
+            }
+
+            return (email ?? _cachedEmail, tier ?? _cachedTier);
+        }
+        catch
+        {
+            return (_cachedEmail, _cachedTier);
+        }
+    }
+
+    private static async Task<string?> FetchAccountEmailAsync(string accessToken)
+    {
+        foreach (var endpoint in UserInfoEndpoints)
+        {
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                req.Headers.UserAgent.ParseAdd("antigravity/1.0 windows/amd64");
+
+                using var resp = await Http.SendAsync(req);
+                if (!resp.IsSuccessStatusCode) continue;
+
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                if (doc.RootElement.TryGetProperty("email", out var em) && em.ValueKind == JsonValueKind.String)
+                {
+                    var email = em.GetString();
+                    if (!string.IsNullOrEmpty(email)) return email;
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+        return null;
+    }
+
+    private static async Task<string?> FetchUserTierAsync(string accessToken)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, CodeAssistEndpoint)
+            {
+                Content = new StringContent(
+                    """{"cloudaicompanionProject":"","metadata":{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}""",
+                    Encoding.UTF8, "application/json"),
+            };
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            req.Headers.UserAgent.ParseAdd("antigravity/1.0 windows/amd64");
+            req.Headers.Add("X-Goog-Api-Client", "gl-node/22");
+            req.Headers.Add("Client-Metadata",
+                """{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}""");
+
+            using var resp = await Http.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return null;
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            var root = doc.RootElement;
+            if (root.TryGetProperty("paidTier", out var pt) && pt.TryGetProperty("name", out var ptn) && ptn.ValueKind == JsonValueKind.String)
+                return ptn.GetString();
+
+            if (root.TryGetProperty("allowedTiers", out var tiers) && tiers.ValueKind == JsonValueKind.Array)
+            {
+                string? fallback = null;
+                foreach (var t in tiers.EnumerateArray())
+                {
+                    string id = t.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                    string name = t.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        if (id != "free-tier") return name;
+                        fallback ??= name;
+                    }
+                }
+                return fallback;
+            }
+        }
+        catch
+        {
+            // best-effort
+        }
+        return null;
+    }
+
     private static async Task<(ToolUsage? Usage, string Reason)> QueryAsync(string accessToken)
     {
         try
         {
+            var profileTask = GetUserProfileAsync(accessToken);
+
             using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
             {
                 Content = new StringContent("{}", Encoding.UTF8, "application/json"),
@@ -137,8 +254,13 @@ public static class AntigravityCliCollector
             if (!root.TryGetProperty("groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
                 return (null, "unexpected response");
 
+            var (userEmail, userTier) = await profileTask;
+            var header = !string.IsNullOrEmpty(userEmail)
+                ? (!string.IsNullOrEmpty(userTier) ? $"{userEmail} · {userTier}" : userEmail)
+                : "Antigravity CLI · live";
+
             LimitInfo? primary = null, weekly = null;
-            var detail = new StringBuilder("Antigravity CLI · live");
+            var detail = new StringBuilder(header);
             bool first = true;
             foreach (var group in groups.EnumerateArray())
             {

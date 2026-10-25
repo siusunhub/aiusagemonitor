@@ -27,6 +27,22 @@ public static class CodexAccounts
 {
     public static readonly Regex AliasRegex = new("^[A-Za-z0-9]{1,32}$");
     private static readonly string[] ReservedAliases = { "accounts", "master" };
+    private static readonly object FileGate = new();
+
+    private sealed record AuthIdentity(string? Email, string? Id, string? Access, string? Refresh, string? IdToken)
+    {
+        public bool Matches(AuthIdentity other)
+        {
+            if (Email != null && other.Email != null && !Email.Equals(other.Email, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (Id != null && other.Id != null && Id != other.Id) return false;
+            return (Id != null && Id == other.Id)
+                || (Email != null && Email.Equals(other.Email, StringComparison.OrdinalIgnoreCase))
+                || (Refresh != null && Refresh == other.Refresh)
+                || (Access != null && Access == other.Access)
+                || (IdToken != null && IdToken == other.IdToken);
+        }
+    }
 
     private static string CodexAuthPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json");
@@ -60,69 +76,70 @@ public static class CodexAccounts
 
     public static List<CodexAccount> List()
     {
-        var meta = LoadMeta();
-        var list = new List<CodexAccount>();
-
-        var (curEmail, curId) = InfoOf(CodexAuthPath);
-
-        string masterSrc = File.Exists(MasterFile) ? MasterFile : CodexAuthPath;
-        var (mEmail, mId) = InfoOf(masterSrc);
-        string masterAlias = meta.MasterAlias ?? mEmail ?? "master";
-
-        var aliases = new List<(string Alias, string? Email, string? Id, string File)>();
-        if (Directory.Exists(StoreDir))
+        lock (FileGate)
         {
-            foreach (var f in Directory.GetFiles(StoreDir, "*.json").OrderBy(f => f))
+            var meta = LoadMeta();
+            var list = new List<CodexAccount>();
+
+            var current = ReadIdentity(CodexAuthPath);
+
+            string masterSrc = File.Exists(MasterFile) ? MasterFile : CodexAuthPath;
+            var master = ReadIdentity(masterSrc);
+            var mEmail = master.Email;
+            string masterAlias = meta.MasterAlias ?? mEmail ?? "master";
+
+            var aliases = new List<(string Alias, AuthIdentity Identity, string File)>();
+            if (Directory.Exists(StoreDir))
             {
-                var name = Path.GetFileNameWithoutExtension(f);
-                if (name.Equals("auth_master", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("accounts", StringComparison.OrdinalIgnoreCase)) continue;
-                var (e, i) = InfoOf(f);
-                aliases.Add((name, e, i, f));
+                foreach (var f in Directory.GetFiles(StoreDir, "*.json").OrderBy(f => f))
+                {
+                    var name = Path.GetFileNameWithoutExtension(f);
+                    if (name.Equals("auth_master", StringComparison.OrdinalIgnoreCase)
+                        || name.Equals("accounts", StringComparison.OrdinalIgnoreCase)) continue;
+                    aliases.Add((name, ReadIdentity(f), f));
+                }
             }
-        }
 
-        // Which stored account matches the auth.json Codex currently uses?
-        string active = "master";
-        if (curId != null)
-        {
+            // Which stored account matches the auth.json Codex currently uses?
             var matches = new List<string>();
-            if (mId == curId) matches.Add("master");
-            matches.AddRange(aliases.Where(a => a.Id == curId).Select(a => a.Alias));
-            if (matches.Count > 0)
-                active = matches.Contains(meta.ActiveAlias) ? meta.ActiveAlias : matches[0];
-        }
+            if (current.Matches(master)) matches.Add("master");
+            matches.AddRange(aliases.Where(a => current.Matches(a.Identity)).Select(a => a.Alias));
+            string? active = matches.Contains(meta.ActiveAlias) ? meta.ActiveAlias : matches.FirstOrDefault();
 
-        list.Add(new CodexAccount(masterAlias, mEmail ?? curEmail, true, active == "master", MasterFile));
-        foreach (var a in aliases)
-            list.Add(new CodexAccount(a.Alias, a.Email, false, active == a.Alias, a.File));
-        return list;
+            list.Add(new CodexAccount(masterAlias, mEmail, true, active == "master", MasterFile));
+            foreach (var a in aliases)
+                list.Add(new CodexAccount(a.Alias, a.Identity.Email, false, active == a.Alias, a.File));
+            return list;
+        }
     }
 
     // ---- switching ----------------------------------------------------------
 
     public static void Switch(CodexAccount target)
     {
-        Directory.CreateDirectory(StoreDir);
-        EnsureMasterBackup();
+        lock (FileGate)
+        {
+            Directory.CreateDirectory(StoreDir);
+            EnsureMasterBackup();
 
-        var accounts = List();
-        var active = accounts.FirstOrDefault(a => a.IsActive);
-        if (active != null && active.IsMaster == target.IsMaster && active.Alias == target.Alias)
-            return; // already active
+            var accounts = List();
+            var active = accounts.FirstOrDefault(a => a.IsActive);
+            if (active != null && active.IsMaster == target.IsMaster && active.Alias == target.Alias)
+                return; // already active
 
-        // Keep the active account's freshest tokens before swapping it out.
-        if (active != null && File.Exists(CodexAuthPath))
-            File.Copy(CodexAuthPath, active.StoreFile, true);
+            // Keep the active account's freshest tokens before swapping it out.
+            if (active != null && File.Exists(CodexAuthPath))
+                File.Copy(CodexAuthPath, active.StoreFile, true);
 
-        if (!File.Exists(target.StoreFile))
-            throw new InvalidOperationException($"Stored account file missing: {target.StoreFile}");
+            if (!File.Exists(target.StoreFile))
+                throw new InvalidOperationException($"Stored account file missing: {target.StoreFile}");
 
-        File.Copy(target.StoreFile, CodexAuthPath, true);
+            File.Copy(target.StoreFile, CodexAuthPath, true);
 
-        var meta = LoadMeta();
-        meta.ActiveAlias = target.IsMaster ? "master" : target.Alias;
-        SaveMeta(meta);
+            var meta = LoadMeta();
+            meta.ActiveAlias = target.IsMaster ? "master" : target.Alias;
+            SaveMeta(meta);
+        }
     }
 
     /// <summary>
@@ -132,35 +149,38 @@ public static class CodexAccounts
     /// </summary>
     public static void MakeBase(CodexAccount target)
     {
-        if (target.IsMaster) return; // already the base
-        if (!File.Exists(target.StoreFile))
-            throw new InvalidOperationException($"Stored account file missing: {target.StoreFile}");
+        lock (FileGate)
+        {
+            if (target.IsMaster) return; // already the base
+            if (!File.Exists(target.StoreFile))
+                throw new InvalidOperationException($"Stored account file missing: {target.StoreFile}");
 
-        Directory.CreateDirectory(StoreDir);
-        EnsureMasterBackup();
-        if (!File.Exists(MasterFile))
-            throw new InvalidOperationException("No base account on file (auth_master.json missing).");
+            Directory.CreateDirectory(StoreDir);
+            EnsureMasterBackup();
+            if (!File.Exists(MasterFile))
+                throw new InvalidOperationException("No base account on file (auth_master.json missing).");
 
-        // Keep the active account's freshest tokens before moving files around.
-        var active = List().FirstOrDefault(a => a.IsActive);
-        if (active != null && File.Exists(CodexAuthPath))
-            File.Copy(CodexAuthPath, active.StoreFile, true);
+            // Keep the active account's freshest tokens before moving files around.
+            var active = List().FirstOrDefault(a => a.IsActive);
+            if (active != null && File.Exists(CodexAuthPath))
+                File.Copy(CodexAuthPath, active.StoreFile, true);
 
-        var meta = LoadMeta();
-        var (mEmail, _) = InfoOf(MasterFile);
-        string oldAlias = UniqueAlias(meta.MasterAlias ?? mEmail?.Split('@')[0] ?? "base");
-        string parked = Path.Combine(StoreDir, oldAlias + ".json");
+            var meta = LoadMeta();
+            var (mEmail, _) = InfoOf(MasterFile);
+            string oldAlias = UniqueAlias(meta.MasterAlias ?? mEmail?.Split('@')[0] ?? "base");
+            string parked = Path.Combine(StoreDir, oldAlias + ".json");
 
-        // Old base out of the way first, then the target into its place;
-        // roll back if the second move fails so no account file is lost.
-        File.Move(MasterFile, parked);
-        try { File.Move(target.StoreFile, MasterFile); }
-        catch { File.Move(parked, MasterFile); throw; }
+            // Old base out of the way first, then the target into its place;
+            // roll back if the second move fails so no account file is lost.
+            File.Move(MasterFile, parked);
+            try { File.Move(target.StoreFile, MasterFile); }
+            catch { File.Move(parked, MasterFile); throw; }
 
-        meta.MasterAlias = target.Alias;
-        if (meta.ActiveAlias == target.Alias) meta.ActiveAlias = "master";
-        else if (meta.ActiveAlias == "master") meta.ActiveAlias = oldAlias;
-        SaveMeta(meta);
+            meta.MasterAlias = target.Alias;
+            if (meta.ActiveAlias == target.Alias) meta.ActiveAlias = "master";
+            else if (meta.ActiveAlias == "master") meta.ActiveAlias = oldAlias;
+            SaveMeta(meta);
+        }
     }
 
     /// <summary>A valid, unused alias as close to <paramref name="desired"/> as possible.</summary>
@@ -184,43 +204,50 @@ public static class CodexAccounts
         if (!IsValidAlias(alias))
             throw new InvalidOperationException("Alias must be 1-32 English letters/numbers only.");
         var targetFile = Path.Combine(StoreDir, alias + ".json");
-        if (File.Exists(targetFile))
-            throw new InvalidOperationException($"Alias \"{alias}\" is already used.");
-
-        Directory.CreateDirectory(StoreDir);
-        EnsureMasterBackup();
-
-        // Preserve the currently active account, then clear auth.json so
-        // `codex login` starts a fresh sign-in instead of reusing the session.
-        var active = List().FirstOrDefault(a => a.IsActive);
         var rollback = Path.Combine(StoreDir, "auth_rollback.tmp");
-        if (File.Exists(CodexAuthPath))
+        lock (FileGate)
         {
-            if (active != null) File.Copy(CodexAuthPath, active.StoreFile, true);
-            File.Copy(CodexAuthPath, rollback, true);
-            File.Delete(CodexAuthPath);
+            if (File.Exists(targetFile))
+                throw new InvalidOperationException($"Alias \"{alias}\" is already used.");
+            Directory.CreateDirectory(StoreDir);
+            EnsureMasterBackup();
+            var active = List().FirstOrDefault(a => a.IsActive);
+            if (File.Exists(CodexAuthPath))
+            {
+                if (active != null) File.Copy(CodexAuthPath, active.StoreFile, true);
+                File.Copy(CodexAuthPath, rollback, true);
+                File.Delete(CodexAuthPath);
+            }
         }
 
         try
         {
             bool ok = await RunCodexLoginAsync(onUrlFound, ct);
-            if (!ok || !File.Exists(CodexAuthPath))
-                throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
-
-            File.Copy(CodexAuthPath, targetFile, true);
-            var meta = LoadMeta();
-            meta.ActiveAlias = alias; // the fresh login is now the active account
-            SaveMeta(meta);
+            lock (FileGate)
+            {
+                if (!ok || !File.Exists(CodexAuthPath))
+                    throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
+                File.Copy(CodexAuthPath, targetFile, true);
+                var meta = LoadMeta();
+                meta.ActiveAlias = alias; // the fresh login is now the active account
+                SaveMeta(meta);
+            }
         }
         catch
         {
             // Restore whatever was active before the attempt.
-            if (File.Exists(rollback)) File.Copy(rollback, CodexAuthPath, true);
+            lock (FileGate)
+            {
+                if (File.Exists(rollback)) File.Copy(rollback, CodexAuthPath, true);
+            }
             throw;
         }
         finally
         {
-            if (File.Exists(rollback)) File.Delete(rollback);
+            lock (FileGate)
+            {
+                if (File.Exists(rollback)) File.Delete(rollback);
+            }
         }
     }
 
@@ -232,81 +259,93 @@ public static class CodexAccounts
     /// </summary>
     public static async Task ReloginAccountAsync(CodexAccount account, Action<string>? onUrlFound = null, CancellationToken ct = default)
     {
-        Directory.CreateDirectory(StoreDir);
-        EnsureMasterBackup();
-
         // account.StoreFile is auth_master.json for the base, or <alias>.json otherwise.
         var targetFile = account.StoreFile;
-
-        // Preserve the currently active account (unless it's the one being
-        // re-logged, whose tokens are dead anyway), then clear auth.json so
-        // `codex login` starts a fresh sign-in instead of reusing the session.
-        var active = List().FirstOrDefault(a => a.IsActive);
         var rollback = Path.Combine(StoreDir, "auth_rollback.tmp");
-        if (File.Exists(CodexAuthPath))
+        lock (FileGate)
         {
-            if (active != null && !(active.IsMaster == account.IsMaster && active.Alias == account.Alias))
-                File.Copy(CodexAuthPath, active.StoreFile, true);
-            File.Copy(CodexAuthPath, rollback, true);
-            File.Delete(CodexAuthPath);
+            Directory.CreateDirectory(StoreDir);
+            EnsureMasterBackup();
+            var active = List().FirstOrDefault(a => a.IsActive);
+            if (File.Exists(CodexAuthPath))
+            {
+                if (active != null && !(active.IsMaster == account.IsMaster && active.Alias == account.Alias))
+                    File.Copy(CodexAuthPath, active.StoreFile, true);
+                File.Copy(CodexAuthPath, rollback, true);
+                File.Delete(CodexAuthPath);
+            }
         }
 
         try
         {
             bool ok = await RunCodexLoginAsync(onUrlFound, ct);
-            if (!ok || !File.Exists(CodexAuthPath))
-                throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
-
-            File.Copy(CodexAuthPath, targetFile, true);
-            var meta = LoadMeta();
-            meta.ActiveAlias = account.IsMaster ? "master" : account.Alias; // fresh login is now active
-            SaveMeta(meta);
+            lock (FileGate)
+            {
+                if (!ok || !File.Exists(CodexAuthPath))
+                    throw new InvalidOperationException("Codex login did not complete (cancelled or timed out).");
+                File.Copy(CodexAuthPath, targetFile, true);
+                var meta = LoadMeta();
+                meta.ActiveAlias = account.IsMaster ? "master" : account.Alias; // fresh login is now active
+                SaveMeta(meta);
+            }
         }
         catch
         {
             // Restore whatever was active before the attempt.
-            if (File.Exists(rollback)) File.Copy(rollback, CodexAuthPath, true);
+            lock (FileGate)
+            {
+                if (File.Exists(rollback)) File.Copy(rollback, CodexAuthPath, true);
+            }
             throw;
         }
         finally
         {
-            if (File.Exists(rollback)) File.Delete(rollback);
+            lock (FileGate)
+            {
+                if (File.Exists(rollback)) File.Delete(rollback);
+            }
         }
     }
 
     public static void Remove(CodexAccount account)
     {
-        if (account.IsMaster)
-            throw new InvalidOperationException("The base account cannot be removed.");
-
-        // Never leave Codex signed in to an account we're deleting.
-        if (account.IsActive)
+        lock (FileGate)
         {
-            var master = List().First(a => a.IsMaster);
-            Switch(master);
+            if (account.IsMaster)
+                throw new InvalidOperationException("The base account cannot be removed.");
+
+            // Never leave Codex signed in to an account we're deleting.
+            if (account.IsActive)
+            {
+                var master = List().First(a => a.IsMaster);
+                Switch(master);
+            }
+            if (File.Exists(account.StoreFile)) File.Delete(account.StoreFile);
         }
-        if (File.Exists(account.StoreFile)) File.Delete(account.StoreFile);
     }
 
     public static void Rename(CodexAccount account, string newAlias)
     {
-        if (!IsValidAlias(newAlias))
-            throw new InvalidOperationException("Alias must be 1-32 English letters/numbers only.");
-
-        var meta = LoadMeta();
-        if (account.IsMaster)
+        lock (FileGate)
         {
-            meta.MasterAlias = newAlias;
-            SaveMeta(meta);
-            return;
-        }
+            if (!IsValidAlias(newAlias))
+                throw new InvalidOperationException("Alias must be 1-32 English letters/numbers only.");
 
-        var newFile = Path.Combine(StoreDir, newAlias + ".json");
-        if (File.Exists(newFile))
-            throw new InvalidOperationException($"Alias \"{newAlias}\" is already used.");
-        File.Move(account.StoreFile, newFile);
-        if (meta.ActiveAlias == account.Alias) meta.ActiveAlias = newAlias;
-        SaveMeta(meta);
+            var meta = LoadMeta();
+            if (account.IsMaster)
+            {
+                meta.MasterAlias = newAlias;
+                SaveMeta(meta);
+                return;
+            }
+
+            var newFile = Path.Combine(StoreDir, newAlias + ".json");
+            if (File.Exists(newFile))
+                throw new InvalidOperationException($"Alias \"{newAlias}\" is already used.");
+            File.Move(account.StoreFile, newFile);
+            if (meta.ActiveAlias == account.Alias) meta.ActiveAlias = newAlias;
+            SaveMeta(meta);
+        }
     }
 
     // ---- per-account usage ----------------------------------------------------
@@ -329,10 +368,18 @@ public static class CodexAccounts
     {
         try
         {
-            string path = account.IsActive && File.Exists(CodexAuthPath) ? CodexAuthPath : account.StoreFile;
-            if (!File.Exists(path)) return CodexUsage.Fail("no stored login");
-
-            var (access, refresh, accountId) = ReadTokens(path);
+            string path;
+            (string? access, string? refresh, string? accountId) tokens;
+            lock (FileGate)
+            {
+                path = account.IsActive && File.Exists(CodexAuthPath)
+                    && ((account.IsMaster && !File.Exists(account.StoreFile))
+                        || ReadIdentity(CodexAuthPath).Matches(ReadIdentity(account.StoreFile)))
+                    ? CodexAuthPath : account.StoreFile;
+                if (!File.Exists(path)) return CodexUsage.Fail("no stored login");
+                tokens = ReadTokens(path);
+            }
+            var (access, refresh, accountId) = tokens;
             if (access == null) return CodexUsage.Fail("no token");
 
             var usage = await QueryUsageAsync(access, accountId);
@@ -414,16 +461,25 @@ public static class CodexAccounts
         string? access = root.TryGetProperty("access_token", out var a) ? a.GetString() : null;
         if (access == null) return null;
 
-        // Persist rotated tokens immediately or the old refresh token dies with them.
-        var json = JsonNode.Parse(File.ReadAllText(path))!;
-        var tokens = json["tokens"] ??= new JsonObject();
-        tokens["access_token"] = access;
-        if (root.TryGetProperty("refresh_token", out var r) && r.GetString() is { } nr)
-            tokens["refresh_token"] = nr;
-        if (root.TryGetProperty("id_token", out var idt) && idt.GetString() is { } nid)
-            tokens["id_token"] = nid;
-        json["last_refresh"] = DateTimeOffset.UtcNow.ToString("o");
-        File.WriteAllText(path, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        lock (FileGate)
+        {
+            var paths = new List<string> { path, CodexAuthPath, Path.Combine(StoreDir, "auth_rollback.tmp") };
+            if (Directory.Exists(StoreDir))
+                paths.AddRange(Directory.GetFiles(StoreDir, "*.json").Where(f => f != MetaFile));
+            foreach (var destination in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (ReadIdentity(destination).Refresh != refreshToken) continue;
+                var json = JsonNode.Parse(File.ReadAllText(destination))!;
+                var tokens = json["tokens"]!;
+                tokens["access_token"] = access;
+                if (root.TryGetProperty("refresh_token", out var r) && r.GetString() is { } nr)
+                    tokens["refresh_token"] = nr;
+                if (root.TryGetProperty("id_token", out var idt) && idt.GetString() is { } nid)
+                    tokens["id_token"] = nid;
+                json["last_refresh"] = DateTimeOffset.UtcNow.ToString("o");
+                File.WriteAllText(destination, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            }
+        }
 
         return access;
     }
@@ -487,28 +543,40 @@ public static class CodexAccounts
     /// <summary>Email (from the id_token JWT) and account id inside an auth.json file.</summary>
     internal static (string? Email, string? Id) InfoOf(string path)
     {
+        var identity = ReadIdentity(path);
+        return (identity.Email, identity.Id);
+    }
+
+    private static AuthIdentity ReadIdentity(string path)
+    {
         try
         {
-            if (!File.Exists(path)) return (null, null);
+            if (!File.Exists(path)) return new(null, null, null, null, null);
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("tokens", out var t)) return (null, null);
+            if (!doc.RootElement.TryGetProperty("tokens", out var t) || t.ValueKind != JsonValueKind.Object)
+                return new(null, null, null, null, null);
 
-            string? id = t.TryGetProperty("account_id", out var a) ? a.GetString() : null;
+            string? Token(string key) => t.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(value.GetString()) ? value.GetString() : null;
+            string? id = Token("account_id");
+            string? jwt = Token("id_token");
             string? email = null;
-            if (t.TryGetProperty("id_token", out var idt) && idt.GetString() is { } jwt)
+            try
             {
-                var parts = jwt.Split('.');
-                if (parts.Length >= 2)
+                var parts = jwt?.Split('.');
+                if (parts is { Length: >= 2 })
                 {
                     var payload = parts[1].Replace('-', '+').Replace('_', '/');
                     payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
                     using var pd = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payload)));
-                    email = pd.RootElement.TryGetProperty("email", out var e) ? e.GetString() : null;
+                    email = pd.RootElement.TryGetProperty("email", out var e) && e.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(e.GetString()) ? e.GetString() : null;
                 }
             }
-            return (email, id);
+            catch (Exception ex) when (ex is FormatException or JsonException or InvalidOperationException) { }
+            return new(email, id, Token("access_token"), Token("refresh_token"), jwt);
         }
-        catch { return (null, null); }
+        catch { return new(null, null, null, null, null); }
     }
 
     private static Meta LoadMeta()

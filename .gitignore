@@ -7,6 +7,7 @@
 *.sqlproj.user
 *.userprefs
 
+
 # Build results
 [Db]bin/
 [Db]obj/
@@ -18,6 +19,10 @@ build/
 bin/
 obj/
 publish/
+.audit/
+scripts/
+.agents/
+.claude/
 
 # Visual Studio cache directory
 .vs/

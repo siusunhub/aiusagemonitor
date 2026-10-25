@@ -50,12 +50,17 @@ public sealed class ToolVm : INotifyPropertyChanged
     }
 
     private bool _show = true;
+    private bool _hasPrimary;
+    private bool _hasWeekly;
     private bool _hasRows;
     private bool _showSeparator;
     private ToolUsage? _last;
 
     public string Name { get; }
     public string FullName { get; }
+
+    /// <summary>True if this tool has a short-window (5-hour) limit. False for tools like Grok CLI that only have a weekly quota.</summary>
+    public bool HasShortWindow { get; set; } = true;
 
     /// <summary>Taskbar label; a multi-word name (e.g. "AG IDE") wraps onto two lines.</summary>
     public string LabelText => Name.Replace(' ', '\n');
@@ -99,18 +104,19 @@ public sealed class ToolVm : INotifyPropertyChanged
     public Visibility CircleVisibility => _hasRows && CompactCircles ? Visibility.Visible : Visibility.Collapsed;
     public Visibility FallbackVisibility => _hasRows ? Visibility.Collapsed : Visibility.Visible;
     public Visibility SeparatorVisibility => _showSeparator ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility ResetVisibility => _hasRows && ShowResetTime ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility WeeklyResetVisibility => _hasRows && ShowWeeklyWindow ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ResetVisibility => !string.IsNullOrEmpty(Row1ResetText) && ShowResetTime ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility WeeklyResetVisibility => !string.IsNullOrEmpty(Row2ResetText) && ShowWeeklyWindow ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DetailVisibility => string.IsNullOrWhiteSpace(DetailText) ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility Row1Visibility => (!string.IsNullOrEmpty(Row1Text) && Row1Text != "–") || _hasRows ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility Row2Visibility => (!string.IsNullOrEmpty(Row2Text) && Row2Text != "–") || _hasRows ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility Row1Visibility => _hasPrimary ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility Row2Visibility => _hasWeekly ? Visibility.Visible : Visibility.Collapsed;
 
     public bool IsShown => _show;
 
-    public ToolVm(string name, string fullName = "")
+    public ToolVm(string name, string fullName = "", bool hasShortWindow = true)
     {
         Name = name;
         FullName = string.IsNullOrEmpty(fullName) ? name : fullName;
+        HasShortWindow = hasShortWindow;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -139,7 +145,9 @@ public sealed class ToolVm : INotifyPropertyChanged
         _last = u;
         IsEstimate = u.IsEstimate;
         var tilde = u.IsEstimate ? "~" : "";
-        _hasRows = u.Primary?.Percent != null || u.Weekly?.Percent != null;
+        _hasPrimary = HasShortWindow && u.Primary?.Percent != null;
+        _hasWeekly = u.Weekly?.Percent != null;
+        _hasRows = _hasPrimary || _hasWeekly;
 
         if (_hasRows)
         {
@@ -147,8 +155,12 @@ public sealed class ToolVm : INotifyPropertyChanged
             (Row2Text, Row2BarWidth, Row2Brush) = RowFor(u.Weekly, tilde, u.IsEstimate);
             (Ring1Geometry, Ring1Brush, Ring1CenterText) = RingFor(u.Primary, tilde, u.IsEstimate);
             (Ring2Geometry, Ring2Brush, Ring2CenterText) = RingFor(u.Weekly, tilde, u.IsEstimate);
-            Row1ResetText = CountdownFor(u.Primary?.ResetsAt);
-            Row2ResetText = WeeklyResetFor(u.Weekly?.ResetsAt);
+            Row1ResetText = _hasPrimary
+                ? CountdownFor(u.Primary?.ResetsAt)
+                : CountdownFor(u.Weekly?.ResetsAt);
+            Row2ResetText = _hasPrimary
+                ? WeeklyResetFor(u.Weekly?.ResetsAt)
+                : "";
         }
         else
         {
@@ -166,7 +178,7 @@ public sealed class ToolVm : INotifyPropertyChanged
         string TipFor(LimitInfo l) => l.Percent is { } p
             ? (ShowRemaining ? $"{100 - p:0.#}% left" : $"{p:0.#}% used")
             : "?";
-        if (u.Primary != null)
+        if (HasShortWindow && u.Primary != null)
             lines.Add($"5-hour: {TipFor(u.Primary)}  {u.Primary.ResetText}");
         if (u.Weekly != null)
             lines.Add($"weekly: {TipFor(u.Weekly)}  {u.Weekly.ResetText}");

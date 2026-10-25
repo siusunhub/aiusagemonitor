@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private readonly Config _config = Config.Load();
     private readonly ToolVm _claude = new("CC", "Claude Code");
     private readonly ToolVm _codex = new("CX", "OpenAI Codex");
+    private readonly ToolVm _grok = new("GK", "Grok CLI", hasShortWindow: false);
     private readonly ToolVm _antigravity = new("AG IDE", "Antigravity IDE");
     private readonly ToolVm _antigravityCli = new("AG CLI", "Antigravity CLI");
 
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
 
     private ToolUsage? _lastClaude;
     private ToolUsage? _lastCodex;
+    private ToolUsage? _lastGrok;
     private ToolUsage? _lastAntigravity;
     private ToolUsage? _lastAntigravityCli;
 
@@ -39,9 +41,10 @@ public partial class MainWindow : Window
         ToolVm.ShowResetTime = _config.ShowResetTime;
         ToolVm.ShowWeeklyWindow = _config.ShowWeeklyWindow;
         ToolVm.ShortUsageBar = _config.ShortUsageBar;
-        ToolsList.ItemsSource = new[] { _claude, _codex, _antigravity, _antigravityCli };
+        ToolsList.ItemsSource = new[] { _claude, _codex, _grok, _antigravity, _antigravityCli };
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
+        _grok.SetVisible(_config.ShowGrok);
         _antigravity.SetVisible(_config.ShowAntigravity);
         _antigravityCli.SetVisible(_config.ShowAntigravityCli);
         UpdateSeparators();
@@ -85,6 +88,7 @@ public partial class MainWindow : Window
         {
             _claude.Tick();
             _codex.Tick();
+            _grok.Tick();
             _antigravity.Tick();
             _antigravityCli.Tick();
         };
@@ -117,6 +121,10 @@ public partial class MainWindow : Window
                 ? CodexCollector.CollectAsync()
                 : Task.FromResult(_lastCodex);
 
+            var grokTask = (force || _lastGrok == null || !_lastGrok.ShouldPauseCheck())
+                ? GrokCollector.CollectAsync()
+                : Task.FromResult(_lastGrok);
+
             var antigravityTask = (force || _lastAntigravity == null || !_lastAntigravity.ShouldPauseCheck())
                 ? AntigravityCollector.CollectAsync()
                 : Task.FromResult(_lastAntigravity);
@@ -125,15 +133,17 @@ public partial class MainWindow : Window
                 ? AntigravityCliCollector.CollectAsync()
                 : Task.FromResult(_lastAntigravityCli);
 
-            await Task.WhenAll(claudeTask, codexTask, antigravityTask, antigravityCliTask);
+            await Task.WhenAll(claudeTask, codexTask, grokTask, antigravityTask, antigravityCliTask);
 
             _lastClaude = claudeTask.Result;
             _lastCodex = codexTask.Result;
+            _lastGrok = grokTask.Result;
             _lastAntigravity = antigravityTask.Result;
             _lastAntigravityCli = antigravityCliTask.Result;
 
             _claude.Update(_lastClaude);
             _codex.Update(_lastCodex);
+            _grok.Update(_lastGrok);
             _antigravity.Update(_lastAntigravity);
             _antigravityCli.Update(_lastAntigravityCli);
         }
@@ -274,18 +284,20 @@ public partial class MainWindow : Window
         // Double-click opens the Claude or Codex login dialog when sign-in is needed.
         if (e.ClickCount == 2)
         {
-            if (ClaudeCollector.NeedsLogin)
-            {
-                var dlg = new LoginWindow();
-                if (dlg.ShowDialog() == true) _ = RefreshAsync(force: true);
-                return;
-            }
-            if (CodexCollector.NeedsLogin)
-            {
-                new CodexAccountsWindow().ShowDialog();
-                _ = RefreshAsync(force: true);
-                return;
-            }
+            // Blocked: do not popup Claude login on double-click
+            // if (ClaudeCollector.NeedsLogin)
+            // {
+            //     var dlg = new LoginWindow();
+            //     if (dlg.ShowDialog() == true) _ = RefreshAsync(force: true);
+            //     return;
+            // }
+            // Blocked: do not popup Codex login on double-click
+            // if (CodexCollector.NeedsLogin)
+            // {
+            //     new CodexAccountsWindow().ShowDialog();
+            //     _ = RefreshAsync(force: true);
+            //     return;
+            // }
         }
 
         _dragging = true;
@@ -347,10 +359,14 @@ public partial class MainWindow : Window
             v => { _config.ShowClaude = v; _claude.SetVisible(v); });
         AddShowToggle(menu, "Show Codex", _config.ShowCodex,
             v => { _config.ShowCodex = v; _codex.SetVisible(v); });
+        AddShowToggle(menu, "Show Grok CLI", _config.ShowGrok,
+            v => { _config.ShowGrok = v; _grok.SetVisible(v); });
         AddShowToggle(menu, "Show Antigravity IDE", _config.ShowAntigravity,
             v => { _config.ShowAntigravity = v; _antigravity.SetVisible(v); });
         AddShowToggle(menu, "Show Antigravity CLI", _config.ShowAntigravityCli,
             v => { _config.ShowAntigravityCli = v; _antigravityCli.SetVisible(v); });
+
+        menu.Items.Add(new Separator());
 
         var showRemaining = new MenuItem
         {
@@ -481,6 +497,7 @@ public partial class MainWindow : Window
     {
         _claude.Tick();
         _codex.Tick();
+        _grok.Tick();
         _antigravity.Tick();
         _antigravityCli.Tick();
     }
@@ -562,7 +579,7 @@ public partial class MainWindow : Window
     private void UpdateSeparators()
     {
         bool anyBefore = false;
-        foreach (var vm in new[] { _claude, _codex, _antigravity, _antigravityCli })
+        foreach (var vm in new[] { _claude, _codex, _grok, _antigravity, _antigravityCli })
         {
             vm.SetSeparator(anyBefore && vm.IsShown);
             if (vm.IsShown) anyBefore = true;

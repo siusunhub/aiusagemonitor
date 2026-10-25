@@ -13,6 +13,7 @@ public sealed class Config
 
     public bool ShowClaude { get; set; } = true;
     public bool ShowCodex { get; set; } = true;
+    public bool ShowGrok { get; set; } = true;
     public bool ShowAntigravity { get; set; } = true;
     public bool ShowAntigravityCli { get; set; } = true;
 

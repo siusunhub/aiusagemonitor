@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly ToolVm _grok = new("GK", "Grok CLI", hasShortWindow: false);
     // Note: When called "AG" only, it refers to Antigravity CLI (agy) code; "AG IDE" refers to Antigravity IDE.
     private readonly ToolVm _antigravityCli = new("AG", "Antigravity CLI");
+    private readonly ToolVm _copilot = new("CP", "GitHub Copilot");
     // AG IDE disabled: quota is now shared with AG CLI. Keep IDE code for reference.
     // private readonly ToolVm _antigravity = new("AG IDE", "Antigravity IDE");
 
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
     private ToolUsage? _lastCodex;
     private ToolUsage? _lastGrok;
     private ToolUsage? _lastAntigravityCli; // "AG" (Antigravity CLI)
+    private ToolUsage? _lastCopilot;
     // private ToolUsage? _lastAntigravity;    // "AG IDE" (Antigravity IDE)
 
     public MainWindow()
@@ -45,11 +47,12 @@ public partial class MainWindow : Window
         ToolVm.ShortUsageBar = _config.ShortUsageBar;
         // Display order: "AG" (Antigravity CLI) is displayed first, before "AG IDE".
         // ToolsList.ItemsSource = new[] { _claude, _codex, _grok, _antigravityCli, _antigravity };
-        ToolsList.ItemsSource = new[] { _claude, _codex, _grok, _antigravityCli };
+        ToolsList.ItemsSource = new[] { _claude, _codex, _grok, _antigravityCli, _copilot };
         _claude.SetVisible(_config.ShowClaude);
         _codex.SetVisible(_config.ShowCodex);
         _grok.SetVisible(_config.ShowGrok);
         _antigravityCli.SetVisible(_config.ShowAntigravityCli);
+        _copilot.SetVisible(_config.ShowCopilot);
         // _antigravity.SetVisible(_config.ShowAntigravity);
         UpdateSeparators();
         BuildContextMenu();
@@ -94,6 +97,7 @@ public partial class MainWindow : Window
             _codex.Tick();
             _grok.Tick();
             _antigravityCli.Tick();
+            _copilot.Tick();
             // _antigravity.Tick();
         };
         countdownTimer.Start();
@@ -133,24 +137,30 @@ public partial class MainWindow : Window
                 ? AntigravityCliCollector.CollectAsync()
                 : Task.FromResult(_lastAntigravityCli);
 
+            var copilotTask = (force || _lastCopilot == null || !_lastCopilot.ShouldPauseCheck())
+                ? CopilotCollector.CollectAsync()
+                : Task.FromResult(_lastCopilot);
+
             // AG IDE polling disabled, including forced/manual refreshes.
             // var antigravityTask = (force || _lastAntigravity == null || !_lastAntigravity.ShouldPauseCheck())
             //     ? AntigravityCollector.CollectAsync()
             //     : Task.FromResult(_lastAntigravity);
 
             // await Task.WhenAll(claudeTask, codexTask, grokTask, antigravityCliTask, antigravityTask);
-            await Task.WhenAll(claudeTask, codexTask, grokTask, antigravityCliTask);
+            await Task.WhenAll(claudeTask, codexTask, grokTask, antigravityCliTask, copilotTask);
 
             _lastClaude = claudeTask.Result;
             _lastCodex = codexTask.Result;
             _lastGrok = grokTask.Result;
             _lastAntigravityCli = antigravityCliTask.Result;
+            _lastCopilot = copilotTask.Result;
             // _lastAntigravity = antigravityTask.Result;
 
             _claude.Update(_lastClaude);
             _codex.Update(_lastCodex);
             _grok.Update(_lastGrok);
             _antigravityCli.Update(_lastAntigravityCli);
+            _copilot.Update(_lastCopilot);
             // _antigravity.Update(_lastAntigravity);
         }
         finally
@@ -369,6 +379,8 @@ public partial class MainWindow : Window
             v => { _config.ShowGrok = v; _grok.SetVisible(v); });
         AddShowToggle(menu, "Show Antigravity CLI", _config.ShowAntigravityCli,
             v => { _config.ShowAntigravityCli = v; _antigravityCli.SetVisible(v); });
+        AddShowToggle(menu, "Show Copilot", _config.ShowCopilot,
+            v => { _config.ShowCopilot = v; _copilot.SetVisible(v); });
         // AddShowToggle(menu, "Show Antigravity IDE", _config.ShowAntigravity,
         //     v => { _config.ShowAntigravity = v; _antigravity.SetVisible(v); });
 
@@ -505,6 +517,7 @@ public partial class MainWindow : Window
         _codex.Tick();
         _grok.Tick();
         _antigravityCli.Tick();
+        _copilot.Tick();
         // _antigravity.Tick();
     }
 
@@ -586,7 +599,7 @@ public partial class MainWindow : Window
     {
         bool anyBefore = false;
         // foreach (var vm in new[] { _claude, _codex, _grok, _antigravityCli, _antigravity })
-        foreach (var vm in new[] { _claude, _codex, _grok, _antigravityCli })
+        foreach (var vm in new[] { _claude, _codex, _grok, _antigravityCli, _copilot })
         {
             vm.SetSeparator(anyBefore && vm.IsShown);
             if (vm.IsShown) anyBefore = true;

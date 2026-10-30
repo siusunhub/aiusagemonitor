@@ -2,10 +2,10 @@
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-blue.svg)](https://microsoft.com/windows)
 [![Target Framework](https://img.shields.io/badge/.NET-10.0%20WPF-purple.svg)](https://dotnet.microsoft.com/)
-[![Version](https://img.shields.io/badge/Version-0.12-green.svg)](https://github.com/siusunhub/aiusagemonitor)
+[![Version](https://img.shields.io/badge/Version-0.14-green.svg)](https://github.com/siusunhub/aiusagemonitor)
 [![License](https://img.shields.io/badge/License-MIT-orange.svg)](LICENSE)
 
-A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, and **Antigravity IDE (AG IDE)**, and **Antigravity CLI (AG CLI)**.
+A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to your system tray icons, showing real-time usage and rate limits for **Claude Code (CC)**, **Codex (CX)**, **Grok CLI (GK)**, **Antigravity CLI (AG)**, and **GitHub Copilot (CP)**.
 
 <p align="center">
   <img src="assets/aiusagemonitorsample.png" alt="AI Usage Monitor Screenshot"><br>
@@ -14,6 +14,20 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
 
 ---
 
+## What's New in v0.14
+
+- **GitHub Copilot (CP) Support**:
+  - Live tracking of Copilot **Chat** (primary row) and **Code Completions** (secondary row) quota utilization.
+  - Displays real-time countdown to monthly quota reset.
+  - Sourced directly from the official Copilot user cache (%LOCALAPPDATA%\copilot\copilot-user-cache.json) with fallback session activity scanning.
+  - Segment placed right after AG, with on/off visibility toggle in the context menu.
+- **Grok CLI (GK) Support**:
+  - Live tracking of Grok credit quota percentage and weekly reset window countdown.
+  - Reads credentials seamlessly from ~/.grok/auth.json (or $GROK_HOME/auth.json).
+- **Codex Multi-Account Synchronization Fix**:
+  - Resolved sync discrepancy where context menu and accounts window displayed stale account info while the taskbar showed live data.
+
+---
 ## Features
 
 - **Seamless Taskbar Integration**:
@@ -25,7 +39,7 @@ A lightweight, TrafficMonitor-style Windows 11 taskbar widget that docks next to
   - **Auto-Hiding Tray Icon**: When the status bar is visible on the desktop, the tray icon is hidden to keep your system tray clean. When the status bar is hidden via "Hide Bar", the tray icon automatically appears.
   - **Quick Restore**: Double-clicking the tray icon immediately restores the status bar.
 - **Context Menus & Version Display**:
-  - Displays the current application version (e.g. `AI Usage Monitor v0.12`) at the very top of both the status bar and tray right-click menus as a reference header.
+  - Displays the current application version (e.g. `AI Usage Monitor v0.14`) at the very top of both the status bar and tray right-click menus as a reference header.
   - Quick access to refresh metrics, sign into Claude Code, switch Codex accounts, toggle individual tool segments, change display modes, and configure autostart.
 - **Display Modes & Customization**:
   - **Dual-Row Mini Bars**: TrafficMonitor-style dual bars for short-term (5-hour) and long-term (weekly) quotas.

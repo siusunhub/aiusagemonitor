@@ -6,7 +6,7 @@ namespace AIUsageMonitor;
 public partial class App : Application
 {
     /// <summary>Application version (record only).</summary>
-    public const string Version = "v0.12";
+    public const string Version = "v0.14";
 
     /// <summary>Write diagnostic entries to %APPDATA%\AIUsageMonitor\claude_api_debug.log.</summary>
     public static readonly bool EnableDebugLog = false;

@@ -82,11 +82,7 @@ public static class CodexAccounts
             var list = new List<CodexAccount>();
 
             var current = ReadIdentity(CodexAuthPath);
-
-            string masterSrc = File.Exists(MasterFile) ? MasterFile : CodexAuthPath;
-            var master = ReadIdentity(masterSrc);
-            var mEmail = master.Email;
-            string masterAlias = meta.MasterAlias ?? mEmail ?? "master";
+            bool hasCurrent = File.Exists(CodexAuthPath) && (current.Email != null || current.Access != null);
 
             var aliases = new List<(string Alias, AuthIdentity Identity, string File)>();
             if (Directory.Exists(StoreDir))
@@ -100,11 +96,51 @@ public static class CodexAccounts
                 }
             }
 
+            var matchedAlias = aliases.FirstOrDefault(a => hasCurrent && current.Matches(a.Identity));
+
+            AuthIdentity master;
+            string masterSrc;
+            if (matchedAlias.Alias != null)
+            {
+                // Current login matches a stored alias; master is parked in MasterFile
+                masterSrc = File.Exists(MasterFile) ? MasterFile : CodexAuthPath;
+                master = ReadIdentity(masterSrc);
+            }
+            else if (aliases.Count == 0 && hasCurrent)
+            {
+                // No stored aliases exist; CodexAuthPath is the sole base account
+                masterSrc = CodexAuthPath;
+                master = current;
+                EnsureMasterBackup();
+                try { File.Copy(CodexAuthPath, MasterFile, true); } catch { }
+            }
+            else
+            {
+                // Multiple accounts exist: read master from MasterFile unless current matches it
+                masterSrc = File.Exists(MasterFile) ? MasterFile : CodexAuthPath;
+                master = ReadIdentity(masterSrc);
+                if (hasCurrent && current.Matches(master))
+                {
+                    master = current;
+                    try { File.Copy(CodexAuthPath, MasterFile, true); } catch { }
+                }
+            }
+
+            var mEmail = master.Email;
+            string masterAlias = meta.MasterAlias ?? mEmail ?? "master";
+
             // Which stored account matches the auth.json Codex currently uses?
             var matches = new List<string>();
-            if (current.Matches(master)) matches.Add("master");
-            matches.AddRange(aliases.Where(a => current.Matches(a.Identity)).Select(a => a.Alias));
+            if (hasCurrent && current.Matches(master)) matches.Add("master");
+            if (hasCurrent)
+                matches.AddRange(aliases.Where(a => current.Matches(a.Identity)).Select(a => a.Alias));
             string? active = matches.Contains(meta.ActiveAlias) ? meta.ActiveAlias : matches.FirstOrDefault();
+
+            if (active != null && meta.ActiveAlias != active)
+            {
+                meta.ActiveAlias = active;
+                SaveMeta(meta);
+            }
 
             list.Add(new CodexAccount(masterAlias, mEmail, true, active == "master", MasterFile));
             foreach (var a in aliases)

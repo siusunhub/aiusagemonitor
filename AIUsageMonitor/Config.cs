@@ -17,6 +17,7 @@ public sealed class Config
     // AG IDE disabled; retain the setting code for reference.
     // public bool ShowAntigravity { get; set; } = true;
     public bool ShowAntigravityCli { get; set; } = true;
+    public bool ShowCopilot { get; set; } = true;
 
     /// <summary>Whether the taskbar bar is visible (tray icon can always bring it back).</summary>
     public bool BarVisible { get; set; } = true;

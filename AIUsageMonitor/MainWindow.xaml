@@ -74,6 +74,12 @@
                                     <TextBlock Text="{Binding Row2ResetFull}" Foreground="#9E9EA6"
                                                FontSize="11" Margin="0,2,0,0"/>
                                 </StackPanel>
+
+                                <!-- Last Update Timestamp -->
+                                <TextBlock Text="{Binding LastUpdatedText}" Foreground="#8A8E99"
+                                           FontSize="10" Margin="0,6,0,0"
+                                           HorizontalAlignment="Right"
+                                           Visibility="{Binding LastUpdatedVisibility}"/>
                             </StackPanel>
                         </Border>
                     </ControlTemplate>

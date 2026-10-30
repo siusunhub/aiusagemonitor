@@ -9,16 +9,19 @@ namespace AIUsageMonitor.Collectors;
 /// <summary>
 /// Antigravity CLI (agy) usage. agy keeps its Google OAuth token in Windows
 /// Credential Manager (target "gemini:antigravity"); with it, the same cloud
-/// quota endpoint the CLI uses returns the per-model-group 5-hour and weekly
-/// limits. The token is read-only here: never logged, never written, and sent
+/// quota endpoints the CLI uses return grouped 5-hour/weekly limits or per-model
+/// quota when Gemini is absent from the summary. The token is read-only here: never logged, never written, and sent
 /// only to googleapis.com. We don't refresh it (that needs agy's own OAuth
 /// client) — agy refreshes it whenever it runs, so an idle CLI shows grayed
 /// last-known values.
 /// </summary>
 public static class AntigravityCliCollector
 {
-    private const string Name = "AG CLI";
+    // Note: When called "AG" only, it refers to Antigravity CLI (agy) code.
+    private const string Name = "AG";
     private const string Endpoint = "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
+    // Older client versions receive a partial summary with the Gemini group omitted.
+    private const string UserAgent = "Antigravity/2.24.0 (windows; amd64)";
     private static readonly string[] CredentialTargets =
     {
         "gemini:antigravity",
@@ -83,10 +86,12 @@ public static class AntigravityCliCollector
             {
                 Name = Name,
                 Primary = _lastGood.Primary,
+                PrimaryLabel = _lastGood.PrimaryLabel,
                 Weekly = _lastGood.Weekly,
                 Detail = _lastGood.Detail +
                          $"\nlast update {_lastGoodAt:HH:mm} — retry #{_consecutiveFailures}\n⚠ {reason}",
                 IsEstimate = true,
+                FetchedAt = _lastGoodAt,
             };
         }
 
@@ -148,7 +153,7 @@ public static class AntigravityCliCollector
             {
                 using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                req.Headers.UserAgent.ParseAdd("antigravity/1.0 windows/amd64");
+                req.Headers.UserAgent.ParseAdd(UserAgent);
 
                 using var resp = await Http.SendAsync(req);
                 if (!resp.IsSuccessStatusCode) continue;
@@ -179,7 +184,7 @@ public static class AntigravityCliCollector
                     Encoding.UTF8, "application/json"),
             };
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            req.Headers.UserAgent.ParseAdd("antigravity/1.0 windows/amd64");
+            req.Headers.UserAgent.ParseAdd(UserAgent);
             req.Headers.Add("X-Goog-Api-Client", "gl-node/22");
             req.Headers.Add("Client-Metadata",
                 """{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}""");
@@ -226,7 +231,7 @@ public static class AntigravityCliCollector
                 Content = new StringContent("{}", Encoding.UTF8, "application/json"),
             };
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            req.Headers.UserAgent.ParseAdd("antigravity/1.0 windows/amd64");
+            req.Headers.UserAgent.ParseAdd(UserAgent);
             // Same client headers agy sends; the endpoint is picky about its callers.
             req.Headers.Add("X-Goog-Api-Client", "gl-node/22");
             req.Headers.Add("Client-Metadata",
@@ -260,27 +265,54 @@ public static class AntigravityCliCollector
                 : "Antigravity CLI · live";
 
             LimitInfo? primary = null, weekly = null;
+            string primaryLabel = "5-hour";
             var detail = new StringBuilder(header);
             bool first = true;
+            bool hasGeminiQuota = false;
             foreach (var group in groups.EnumerateArray())
             {
                 string name = group.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
                 var g5h = AntigravityCollector.ParseBucket(group, "5h");
                 var gwk = AntigravityCollector.ParseBucket(group, "weekly");
+                bool isGemini = name.Contains("gemini", StringComparison.OrdinalIgnoreCase)
+                    || (group.TryGetProperty("buckets", out var buckets) && buckets.ValueKind == JsonValueKind.Array
+                        && buckets.EnumerateArray().Any(b => b.TryGetProperty("bucketId", out var id)
+                            && id.ValueKind == JsonValueKind.String
+                            && id.GetString()!.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase)));
 
-                // Bars show the first group (Gemini); the rest go into the tooltip.
-                if (first)
+                // Prefer Gemini regardless of group order; keep other pools in the tooltip.
+                if ((first || isGemini) && (g5h != null || gwk != null))
                 {
                     primary = g5h;
                     weekly = gwk;
                     first = false;
+                    hasGeminiQuota |= isGemini;
                 }
                 detail.Append($"\n{name}: 5h {AntigravityCollector.Fmt(g5h)} · wk {AntigravityCollector.Fmt(gwk)} used");
             }
 
+            if (!hasGeminiQuota)
+            {
+                // The summary may now contain only Claude/GPT. Gemini quota is
+                // still exposed per model, without an explicit weekly/5h window.
+                var gemini = await FetchGeminiQuotaAsync(accessToken);
+                if (gemini != null)
+                {
+                    primary = gemini;
+                    weekly = null;
+                    primaryLabel = "Gemini model quota";
+                    detail.Append($"\nGemini models (most used): {AntigravityCollector.Fmt(gemini)} used");
+                    detail.Append("\nGemini quota window duration and weekly limit are not supplied by the model endpoint.");
+                }
+                else
+                {
+                    detail.Append("\nGemini quota unavailable; bars show the returned model group above.");
+                }
+            }
+
             if (primary == null && weekly == null) return (null, "unexpected response");
 
-            return (new ToolUsage { Name = Name, Primary = primary, Weekly = weekly, Detail = detail.ToString() }, "");
+            return (new ToolUsage { Name = Name, Primary = primary, PrimaryLabel = primaryLabel, Weekly = weekly, Detail = detail.ToString() }, "");
         }
         catch (TaskCanceledException)
         {
@@ -294,6 +326,59 @@ public static class AntigravityCliCollector
         {
             return (null, "unexpected response");
         }
+    }
+
+    private static async Task<LimitInfo?> FetchGeminiQuotaAsync(string accessToken)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post,
+                "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels")
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+            };
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            req.Headers.UserAgent.ParseAdd(UserAgent);
+            req.Headers.Add("X-Goog-Api-Client", "gl-node/22");
+            req.Headers.Add("Client-Metadata",
+                """{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}""");
+            using var resp = await Http.SendAsync(req);
+            if ((int)resp.StatusCode == 429) _skipUntil = DateTimeOffset.UtcNow.AddMinutes(10);
+            if (!resp.IsSuccessStatusCode) return null;
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            return ParseGeminiModelQuota(doc.RootElement);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return null; // Keep the available summary when the model endpoint fails.
+        }
+    }
+
+    internal static LimitInfo? ParseGeminiModelQuota(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("models", out var models) || models.ValueKind != JsonValueKind.Object)
+            return null;
+
+        LimitInfo? mostUsed = null;
+        foreach (var model in models.EnumerateObject())
+        {
+            if (!model.Name.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase)
+                || model.Value.ValueKind != JsonValueKind.Object
+                || !model.Value.TryGetProperty("quotaInfo", out var quota) || quota.ValueKind != JsonValueKind.Object
+                || !quota.TryGetProperty("resetTime", out var rt) || rt.ValueKind != JsonValueKind.String
+                || !DateTimeOffset.TryParse(rt.GetString(), out var reset)) continue;
+
+            // Proto3 JSON may omit a zero remainingFraction.
+            double remaining = 0;
+            if (quota.TryGetProperty("remainingFraction", out var rf)
+                && (rf.ValueKind != JsonValueKind.Number || !rf.TryGetDouble(out remaining))) continue;
+            if (!double.IsFinite(remaining) || remaining < 0 || remaining > 1) continue;
+            double used = (1 - remaining) * 100;
+            if (mostUsed == null || used > mostUsed.Percent)
+                mostUsed = new LimitInfo { Percent = used, ResetsAt = reset };
+        }
+        return mostUsed;
     }
 
     // ---- Windows Credential Manager ----------------------------------------

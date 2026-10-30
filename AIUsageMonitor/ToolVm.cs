@@ -97,6 +97,9 @@ public sealed class ToolVm : INotifyPropertyChanged
 
     public string Tooltip { get; private set; } = "loading…";
 
+    public string LastUpdatedText { get; private set; } = "";
+    public Visibility LastUpdatedVisibility => string.IsNullOrEmpty(LastUpdatedText) ? Visibility.Collapsed : Visibility.Visible;
+
     public bool IsEstimate { get; private set; }
 
     public Visibility Visibility => _show ? Visibility.Visible : Visibility.Collapsed;
@@ -172,6 +175,9 @@ public sealed class ToolVm : INotifyPropertyChanged
         DetailText = u.Detail ?? "";
         Row1ResetFull = u.Primary?.ResetText ?? "";
         Row2ResetFull = u.Weekly?.ResetText ?? "";
+        LastUpdatedText = u.FetchedAt != default
+            ? $"Updated: {u.FetchedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+            : "";
 
         var lines = new List<string>();
         if (!string.IsNullOrWhiteSpace(u.Detail)) lines.Add(u.Detail);
@@ -179,9 +185,11 @@ public sealed class ToolVm : INotifyPropertyChanged
             ? (ShowRemaining ? $"{100 - p:0.#}% left" : $"{p:0.#}% used")
             : "?";
         if (HasShortWindow && u.Primary != null)
-            lines.Add($"5-hour: {TipFor(u.Primary)}  {u.Primary.ResetText}");
+            lines.Add($"{u.PrimaryLabel}: {TipFor(u.Primary)}  {u.Primary.ResetText}");
         if (u.Weekly != null)
             lines.Add($"weekly: {TipFor(u.Weekly)}  {u.Weekly.ResetText}");
+        if (!string.IsNullOrEmpty(LastUpdatedText))
+            lines.Add(LastUpdatedText);
         Tooltip = string.Join("\n", lines.Where(l => !string.IsNullOrWhiteSpace(l)));
 
         Raise();

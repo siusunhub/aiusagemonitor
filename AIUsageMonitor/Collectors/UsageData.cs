@@ -18,6 +18,9 @@ public sealed class ToolUsage
     /// <summary>Short-window limit (typically 5 hours). Null if unknown.</summary>
     public LimitInfo? Primary { get; init; }
 
+    /// <summary>Label for a primary quota whose duration may not be supplied by the provider.</summary>
+    public string PrimaryLabel { get; init; } = "5-hour";
+
     /// <summary>Weekly limit. Null if unknown.</summary>
     public LimitInfo? Weekly { get; init; }
 

@@ -1,9 +1,9 @@
-using System.IO;
-using System.Management;
-using System.Net.Http;
-using System.Text;
+// using System.IO;
+// using System.Management;
+// using System.Net.Http;
+// using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
+// using System.Text.RegularExpressions;
 
 namespace AIUsageMonitor.Collectors;
 
@@ -16,173 +16,174 @@ namespace AIUsageMonitor.Collectors;
 /// </summary>
 public static class AntigravityCollector
 {
-    private static readonly HttpClient Http = new(new HttpClientHandler
-    {
-        // The language server uses a self-signed cert on 127.0.0.1.
-        ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-    })
-    { Timeout = TimeSpan.FromSeconds(6) };
+    // AG IDE disabled. Shared CLI quota parsing helpers below remain active.
+//     private static readonly HttpClient Http = new(new HttpClientHandler
+//     {
+//         // The language server uses a self-signed cert on 127.0.0.1.
+//         ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+//     })
+//     { Timeout = TimeSpan.FromSeconds(6) };
 
-    private const string RpcBody =
-        """{"metadata":{"ideName":"antigravity","extensionName":"antigravity","locale":"en"}}""";
+//     private const string RpcBody =
+//         """{"metadata":{"ideName":"antigravity","extensionName":"antigravity","locale":"en"}}""";
 
-    private static int _cachedPort;
-    private static string? _cachedToken;
+//     private static int _cachedPort;
+//     private static string? _cachedToken;
 
-    public static async Task<ToolUsage> CollectAsync()
-    {
-        try
-        {
-            var live = await TryLocalApiAsync();
-            if (live != null) return live;
-        }
-        catch
-        {
-            // fall through to activity fallback
-        }
-        return CollectActivity();
-    }
+//     public static async Task<ToolUsage> CollectAsync()
+//     {
+//         try
+//         {
+//             var live = await TryLocalApiAsync();
+//             if (live != null) return live;
+//         }
+//         catch
+//         {
+//             // fall through to activity fallback
+//         }
+//         return CollectActivity();
+//     }
 
-    // ---- local language-server API ----------------------------------------
+//     // ---- local language-server API ----------------------------------------
 
-    private static async Task<ToolUsage?> TryLocalApiAsync()
-    {
-        // Try the cached endpoint first; rediscover once if it stopped working.
-        if (_cachedPort != 0 && _cachedToken != null)
-        {
-            var cached = await QueryQuotaAsync(_cachedPort, _cachedToken);
-            if (cached != null) return cached;
-            _cachedPort = 0;
-            _cachedToken = null;
-        }
+//     private static async Task<ToolUsage?> TryLocalApiAsync()
+//     {
+//         // Try the cached endpoint first; rediscover once if it stopped working.
+//         if (_cachedPort != 0 && _cachedToken != null)
+//         {
+//             var cached = await QueryQuotaAsync(_cachedPort, _cachedToken);
+//             if (cached != null) return cached;
+//             _cachedPort = 0;
+//             _cachedToken = null;
+//         }
 
-        foreach (var (pid, token) in await Task.Run(FindLanguageServers))
-        {
-            foreach (var port in NetInterop.GetListeningPorts(pid))
-            {
-                var usage = await QueryQuotaAsync(port, token);
-                if (usage != null)
-                {
-                    _cachedPort = port;
-                    _cachedToken = token;
-                    return usage;
-                }
-            }
-        }
-        return null;
-    }
+//         foreach (var (pid, token) in await Task.Run(FindLanguageServers))
+//         {
+//             foreach (var port in NetInterop.GetListeningPorts(pid))
+//             {
+//                 var usage = await QueryQuotaAsync(port, token);
+//                 if (usage != null)
+//                 {
+//                     _cachedPort = port;
+//                     _cachedToken = token;
+//                     return usage;
+//                 }
+//             }
+//         }
+//         return null;
+//     }
 
-    private static List<(int Pid, string Token)> FindLanguageServers()
-    {
-        var result = new List<(int, string)>();
-        using var searcher = new ManagementObjectSearcher(
-            "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='language_server_windows_x64.exe'");
-        foreach (var obj in searcher.Get())
-        {
-            var cmd = obj["CommandLine"] as string ?? "";
-            if (!cmd.Contains("antigravity", StringComparison.OrdinalIgnoreCase)) continue;
-            var m = Regex.Match(cmd, @"--csrf_token[=\s]+([a-f0-9\-]+)", RegexOptions.IgnoreCase);
-            if (!m.Success) continue;
-            result.Add((Convert.ToInt32(obj["ProcessId"]), m.Groups[1].Value));
-        }
-        return result;
-    }
+//     private static List<(int Pid, string Token)> FindLanguageServers()
+//     {
+//         var result = new List<(int, string)>();
+//         using var searcher = new ManagementObjectSearcher(
+//             "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='language_server_windows_x64.exe'");
+//         foreach (var obj in searcher.Get())
+//         {
+//             var cmd = obj["CommandLine"] as string ?? "";
+//             if (!cmd.Contains("antigravity", StringComparison.OrdinalIgnoreCase)) continue;
+//             var m = Regex.Match(cmd, @"--csrf_token[=\s]+([a-f0-9\-]+)", RegexOptions.IgnoreCase);
+//             if (!m.Success) continue;
+//             result.Add((Convert.ToInt32(obj["ProcessId"]), m.Groups[1].Value));
+//         }
+//         return result;
+//     }
 
-    private static async Task<ToolUsage?> QueryQuotaAsync(int port, string token)
-    {
-        try
-        {
-            var userStatusTask = QueryUserStatusAsync(port, token);
+//     private static async Task<ToolUsage?> QueryQuotaAsync(int port, string token)
+//     {
+//         try
+//         {
+//             var userStatusTask = QueryUserStatusAsync(port, token);
 
-            using var req = new HttpRequestMessage(HttpMethod.Post,
-                $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary")
-            {
-                Content = new StringContent(RpcBody, Encoding.UTF8, "application/json"),
-            };
-            req.Headers.Add("X-Codeium-Csrf-Token", token);
-            req.Headers.Add("Connect-Protocol-Version", "1");
+//             using var req = new HttpRequestMessage(HttpMethod.Post,
+//                 $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary")
+//             {
+//                 Content = new StringContent(RpcBody, Encoding.UTF8, "application/json"),
+//             };
+//             req.Headers.Add("X-Codeium-Csrf-Token", token);
+//             req.Headers.Add("Connect-Protocol-Version", "1");
 
-            using var resp = await Http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return null;
+//             using var resp = await Http.SendAsync(req);
+//             if (!resp.IsSuccessStatusCode) return null;
 
-            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-            if (!doc.RootElement.TryGetProperty("response", out var response)) return null;
-            if (!response.TryGetProperty("groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
-                return null;
+//             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+//             if (!doc.RootElement.TryGetProperty("response", out var response)) return null;
+//             if (!response.TryGetProperty("groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
+//                 return null;
 
-            var (userEmail, userTier) = await userStatusTask;
-            var header = !string.IsNullOrEmpty(userEmail)
-                ? (!string.IsNullOrEmpty(userTier) ? $"{userEmail} · {userTier}" : userEmail)
-                : "Antigravity IDE · live";
+//             var (userEmail, userTier) = await userStatusTask;
+//             var header = !string.IsNullOrEmpty(userEmail)
+//                 ? (!string.IsNullOrEmpty(userTier) ? $"{userEmail} · {userTier}" : userEmail)
+//                 : "Antigravity IDE · live";
 
-            LimitInfo? primary = null, weekly = null;
-            var detail = new StringBuilder(header);
+//             LimitInfo? primary = null, weekly = null;
+//             var detail = new StringBuilder(header);
 
-            bool first = true;
-            foreach (var group in groups.EnumerateArray())
-            {
-                string name = group.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
-                var g5h = ParseBucket(group, "5h");
-                var gwk = ParseBucket(group, "weekly");
+//             bool first = true;
+//             foreach (var group in groups.EnumerateArray())
+//             {
+//                 string name = group.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
+//                 var g5h = ParseBucket(group, "5h");
+//                 var gwk = ParseBucket(group, "weekly");
 
-                // The bars show the Gemini group (first group as returned);
-                // other groups (Claude/GPT) go into the tooltip.
-                if (first)
-                {
-                    primary = g5h;
-                    weekly = gwk;
-                    first = false;
-                }
-                detail.Append($"\n{name}: 5h {Fmt(g5h)} · wk {Fmt(gwk)} used");
-            }
+//                 // The bars show the Gemini group (first group as returned);
+//                 // other groups (Claude/GPT) go into the tooltip.
+//                 if (first)
+//                 {
+//                     primary = g5h;
+//                     weekly = gwk;
+//                     first = false;
+//                 }
+//                 detail.Append($"\n{name}: 5h {Fmt(g5h)} · wk {Fmt(gwk)} used");
+//             }
 
-            if (primary == null && weekly == null) return null;
+//             if (primary == null && weekly == null) return null;
 
-            return new ToolUsage
-            {
-                Name = "AG IDE",
-                Primary = primary,
-                Weekly = weekly,
-                Detail = detail.ToString(),
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
+//             return new ToolUsage
+//             {
+//                 Name = "AG IDE",
+//                 Primary = primary,
+//                 Weekly = weekly,
+//                 Detail = detail.ToString(),
+//             };
+//         }
+//         catch
+//         {
+//             return null;
+//         }
+//     }
 
-    private static async Task<(string? Email, string? Tier)> QueryUserStatusAsync(int port, string token)
-    {
-        try
-        {
-            using var req = new HttpRequestMessage(HttpMethod.Post,
-                $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus")
-            {
-                Content = new StringContent(RpcBody, Encoding.UTF8, "application/json"),
-            };
-            req.Headers.Add("X-Codeium-Csrf-Token", token);
-            req.Headers.Add("Connect-Protocol-Version", "1");
+//     private static async Task<(string? Email, string? Tier)> QueryUserStatusAsync(int port, string token)
+//     {
+//         try
+//         {
+//             using var req = new HttpRequestMessage(HttpMethod.Post,
+//                 $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus")
+//             {
+//                 Content = new StringContent(RpcBody, Encoding.UTF8, "application/json"),
+//             };
+//             req.Headers.Add("X-Codeium-Csrf-Token", token);
+//             req.Headers.Add("Connect-Protocol-Version", "1");
 
-            using var resp = await Http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return (null, null);
+//             using var resp = await Http.SendAsync(req);
+//             if (!resp.IsSuccessStatusCode) return (null, null);
 
-            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-            if (!doc.RootElement.TryGetProperty("userStatus", out var us)) return (null, null);
+//             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+//             if (!doc.RootElement.TryGetProperty("userStatus", out var us)) return (null, null);
 
-            string? email = us.TryGetProperty("email", out var em) && em.ValueKind == JsonValueKind.String
-                ? em.GetString() : null;
-            string? tier = us.TryGetProperty("userTier", out var ut) && ut.ValueKind == JsonValueKind.Object
-                && ut.TryGetProperty("name", out var tn) && tn.ValueKind == JsonValueKind.String
-                ? tn.GetString() : null;
+//             string? email = us.TryGetProperty("email", out var em) && em.ValueKind == JsonValueKind.String
+//                 ? em.GetString() : null;
+//             string? tier = us.TryGetProperty("userTier", out var ut) && ut.ValueKind == JsonValueKind.Object
+//                 && ut.TryGetProperty("name", out var tn) && tn.ValueKind == JsonValueKind.String
+//                 ? tn.GetString() : null;
 
-            return (email, tier);
-        }
-        catch
-        {
-            return (null, null);
-        }
-    }
+//             return (email, tier);
+//         }
+//         catch
+//         {
+//             return (null, null);
+//         }
+//     }
 
     internal static LimitInfo? ParseBucket(JsonElement group, string window)
     {
@@ -206,42 +207,42 @@ public static class AntigravityCollector
 
     internal static string Fmt(LimitInfo? l) => l?.Percent is { } p ? $"{p:0.#}%" : "?";
 
-    // ---- fallback: conversation activity ------------------------------------
+//     // ---- fallback: conversation activity ------------------------------------
 
-    private static ToolUsage CollectActivity()
-    {
-        try
-        {
-            // Quota is only available from the running language server. If it's
-            // not running, say so plainly rather than showing a confusing count.
-            bool running = FindLanguageServers().Count > 0;
+//     private static ToolUsage CollectActivity()
+//     {
+//         try
+//         {
+//             // Quota is only available from the running language server. If it's
+//             // not running, say so plainly rather than showing a confusing count.
+//             bool running = FindLanguageServers().Count > 0;
 
-            var detail = "Antigravity IDE is not running — start it to see 5h/weekly quota";
-            var convDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".gemini", "antigravity-cli", "conversations");
-            if (Directory.Exists(convDir))
-            {
-                var last = Directory.EnumerateFiles(convDir, "*.db")
-                    .Select(f => new FileInfo(f).LastWriteTime)
-                    .DefaultIfEmpty()
-                    .Max();
-                if (last != default)
-                    detail += $"\nlast activity: {last:ddd HH:mm}";
-            }
+//             var detail = "Antigravity IDE is not running — start it to see 5h/weekly quota";
+//             var convDir = Path.Combine(
+//                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+//                 ".gemini", "antigravity-cli", "conversations");
+//             if (Directory.Exists(convDir))
+//             {
+//                 var last = Directory.EnumerateFiles(convDir, "*.db")
+//                     .Select(f => new FileInfo(f).LastWriteTime)
+//                     .DefaultIfEmpty()
+//                     .Max();
+//                 if (last != default)
+//                     detail += $"\nlast activity: {last:ddd HH:mm}";
+//             }
 
-            return new ToolUsage
-            {
-                Name = "AG IDE",
-                // "running but query failed" is rare; either way there's no live quota.
-                StatusText = running ? "n/a" : "off",
-                Detail = running ? "Antigravity IDE quota query failed — will retry" : detail,
-                IsEstimate = false,
-            };
-        }
-        catch (Exception ex)
-        {
-            return new ToolUsage { Name = "AG IDE", StatusText = "err", Detail = "Antigravity IDE: " + ex.Message };
-        }
-    }
+//             return new ToolUsage
+//             {
+//                 Name = "AG IDE",
+//                 // "running but query failed" is rare; either way there's no live quota.
+//                 StatusText = running ? "n/a" : "off",
+//                 Detail = running ? "Antigravity IDE quota query failed — will retry" : detail,
+//                 IsEstimate = false,
+//             };
+//         }
+//         catch (Exception ex)
+//         {
+//             return new ToolUsage { Name = "AG IDE", StatusText = "err", Detail = "Antigravity IDE: " + ex.Message };
+//         }
+//     }
 }

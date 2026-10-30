@@ -54,6 +54,7 @@ public static class ClaudeCollector
                 Weekly = _lastGood.Weekly,
                 Detail = _lastGood.Detail + $"\nlast update {_lastGoodAt:HH:mm} — retrying…",
                 IsEstimate = true,
+                FetchedAt = _lastGoodAt,
             };
         }
 
